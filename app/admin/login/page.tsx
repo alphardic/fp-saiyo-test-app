@@ -11,7 +11,12 @@ export default function AdminLoginPage() {
   async function handleLogin() {
     setError(null);
     // マジックリンク方式(パスワード管理不要)。Supabase Auth側の設定で有効化が必要。
-    const { error } = await supabaseBrowser.auth.signInWithOtp({ email });
+    const { error } = await supabaseBrowser.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/admin`,
+      },
+    });
     if (error) {
       setError(error.message);
     } else {
