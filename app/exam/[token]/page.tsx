@@ -1,8 +1,6 @@
 import { getExamForToken, ExamAccessError } from "@/lib/examService";
 import ExamForm from "@/components/ExamForm";
 
-export const runtime = "edge";
-
 export default async function ExamPage({
   params,
 }: {
