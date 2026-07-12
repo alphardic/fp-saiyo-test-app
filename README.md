@@ -70,17 +70,19 @@ npm run dev
 
 `http://localhost:3000` で確認できます。
 
-## Cloudflare Pagesへのデプロイ
+## Cloudflare Workersへのデプロイ
+
+Next.js公式のCloudflareアダプター(`@opennextjs/cloudflare`)を使用しています(旧`@cloudflare/next-on-pages`/Cloudflare Pagesではなく、現行のCloudflare Workers + Workers Buildsを使う構成)。
 
 1. このプロジェクトをGitHubリポジトリにpush
-2. Cloudflareダッシュボード > Workers & Pages > Create > Pages > 「Connect to Git」でリポジトリを連携
+2. Cloudflareダッシュボード > Workers & Pages > Create > 「Connect GitHub」でリポジトリを連携
 3. ビルド設定:
-   - Build command: `npm run pages:build`
-   - Build output directory: `.vercel/output/static`
-4. 環境変数(`.env.local` と同じ内容)をCloudflare Pagesの Settings > Environment variables に設定
-   - `SUPABASE_SERVICE_ROLE_KEY` は必ず「本番環境変数」として設定し、リポジトリには絶対にコミットしないこと
-5. デプロイ完了後、候補者向けリンクは `https://<プロジェクト>.pages.dev/exam/<candidatesテーブルのinvite_token>` になります
+   - Build command: `npm run deploy` (build含む。`opennextjs-cloudflare build && opennextjs-cloudflare deploy`)
+   - Deploy command: `npx wrangler deploy`(自動配置される場合はそのままでも可)
+4. 環境変数(`.env.local` と同じ内容)をプロジェクトの Settings > Variables and secrets に設定
+   - `SUPABASE_SERVICE_ROLE_KEY` は必ず Secret(暗号化)として設定し、リポジトリには絶対にコミットしないこと
+5. デプロイ完了後、候補者向けリンクは `https://<プロジェクト>.workers.dev/exam/<candidatesテーブルのinvite_token>` になります
 
 ## 候補者の招待方法(現状の暫定手順)
 
-管理画面が未実装のため、当面はSupabaseダッシュボードのTable Editorから `candidates` テーブルに直接レコードを追加してください(`name`, `email` を入力すれば `invite_token` は自動生成されます)。生成された `invite_token` を使って `/exam/<token>` のリンクを候補者に送付します。
+管理画面が未実装のた
