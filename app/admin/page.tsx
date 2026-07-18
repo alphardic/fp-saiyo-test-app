@@ -19,9 +19,9 @@ interface CandidateRow {
 }
 
 /**
- * 管理者向けダッシュボードの骨組み。
- * 受験セッション一覧の表示 + 候補者の新規招待フォーム。
- * TODO: 分野別スコアのグラフ表示、レポートPDFへのリンクなどを追加していく。
+ * 管理者向けダッシュボード。
+ * データ取得・候補者登録はサーバー側API(/api/admin/*)経由で行う
+ * (RLS越しの直接アクセスがSupabase側のJWT検証の問題で不安定なため)。
  */
 export default function AdminDashboardPage() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
@@ -40,32 +40,36 @@ export default function AdminDashboardPage() {
     load();
   }, []);
 
+  async function getAccessToken(): Promise<string | null> {
+    const { data } = await supabaseBrowser.auth.getSession();
+    return data.session?.access_token ?? null;
+  }
+
   async function load() {
-    const { data: userData } = await supabaseBrowser.auth.getUser();
-    if (!userData.user) {
+    const token = await getAccessToken();
+    if (!token) {
       setAuthError("ログインが必要です。");
       setLoading(false);
       return;
     }
 
-    const { data: sessionData, error: sessionError } = await supabaseBrowser
-      .from("exam_sessions")
-      .select("id, status, submitted_at, candidates(name, email)")
-      .order("submitted_at", { ascending: false });
+    const res = await fetch("/api/admin/dashboard", {
+      headers: { Authorization: "Bearer " + token },
+    });
 
-    const { data: candidateData, error: candidateError } = await supabaseBrowser
-      .from("candidates")
-      .select("id, name, email, invite_token, created_at")
-      .order("created_at", { ascending: false });
-
-    if (sessionError || candidateError) {
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
       setAuthError(
-        "データの取得に失敗しました(管理者権限が付与されているか確認してください)。"
+        body.error ||
+          "データの取得に失敗しました(管理者権限が付与されているか確認してください)。"
       );
-    } else {
-      setSessions((sessionData as unknown as SessionRow[]) ?? []);
-      setCandidates((candidateData as CandidateRow[]) ?? []);
+      setLoading(false);
+      return;
     }
+
+    const body = await res.json();
+    setCandidates(body.candidates ?? []);
+    setSessions(body.sessions ?? []);
     setLoading(false);
   }
 
@@ -75,18 +79,26 @@ export default function AdminDashboardPage() {
       setAddError("名前とメールアドレスを入力してください。");
       return;
     }
+    const token = await getAccessToken();
+    if (!token) {
+      setAddError("ログインが必要です。");
+      return;
+    }
+
     setAdding(true);
-    const { error } = await supabaseBrowser
-      .from("candidates")
-      .insert({ name, email });
+    const res = await fetch("/api/admin/candidates", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token,
+      },
+      body: JSON.stringify({ name, email }),
+    });
     setAdding(false);
 
-    if (error) {
-      setAddError(
-        error.code === "23505"
-          ? "このメールアドレスは既に登録されています。"
-          : "登録に失敗しました: " + error.message
-      );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setAddError(body.error || "登録に失敗しました。");
       return;
     }
 
