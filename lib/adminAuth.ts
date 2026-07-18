@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
-/**
- * API Route内で「管理者としてログイン済みか」を検証するヘルパー。
- * PostgREST側のRLS判定に頼らず、service role clientで
- * ユーザー検証・admins判定の両方をサーバーサイドで行う。
- * (Data API側でJWT検証がうまくいかないケースを回避するため)
- */
 export async function requireAdmin(
   req: NextRequest
 ): Promise<{ userId: string } | NextResponse> {
@@ -21,17 +15,30 @@ export async function requireAdmin(
   const { data: userData, error: userError } = await supabase.auth.getUser(token);
 
   if (userError || !userData.user) {
-    return NextResponse.json({ error: "認証に失敗しました。" }, { status: 401 });
+    return NextResponse.json(
+      { error: "認証に失敗しました: " + (userError?.message ?? "") },
+      { status: 401 }
+    );
   }
 
-  const { data: adminRow } = await supabase
+  const { data: adminRow, error: adminError } = await supabase
     .from("admins")
     .select("user_id")
     .eq("user_id", userData.user.id)
     .maybeSingle();
 
   if (!adminRow) {
-    return NextResponse.json({ error: "管理者権限がありません。" }, { status: 403 });
+    return NextResponse.json(
+      {
+        error:
+          "管理者権限がありません。(debug: " +
+          (adminError?.message ?? "no row, no error") +
+          ", userId=" +
+          userData.user.id +
+          ")",
+      },
+      { status: 403 }
+    );
   }
 
   return { userId: userData.user.id };
