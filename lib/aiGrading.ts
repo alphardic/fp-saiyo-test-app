@@ -80,3 +80,57 @@ ${params.candidateAnswer || "(未回答)"}
 
   return { score, notes: parsed.notes ?? "" };
 }
+
+/**
+ * 分野別スコアをもとに、候補者の強み・弱みをまとめる総評をAnthropic Claude APIで生成する。
+ */
+export async function generateOverallSummary(params: {
+  candidateName: string;
+  fieldScores: Record<string, number>;
+}): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY が設定されていません。");
+  }
+
+  const scoresText = Object.entries(params.fieldScores)
+    .map(([field, score]) => `${field}: ${score}点`)
+    .join("\n");
+
+  const prompt = `あなたはFP(ファイナンシャルプランナー)業界の採用担当者向けに、
+入社適性テストの結果を要約するAIです。
+
+候補者「${params.candidateName}」の分野別スコア(0〜100点、13分野)は以下の通りです。
+
+${scoresText}
+
+この結果をもとに、採用担当者向けに、候補者の強み・弱みを120〜200字程度の
+日本語の文章で簡潔にまとめてください。特に高い分野・低い分野に触れ、
+実務上の示唆(得意分野を活かせる業務、補強が必要な分野など)を含めてください。
+出力は要約の文章のみとし、見出しや箇条書き、前置きは使わないでください。`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 500,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`AI要約APIエラー(${res.status}): ${text.slice(0, 300)}`);
+  }
+
+  const data = (await res.json()) as {
+    content: { type: string; text?: string }[];
+  };
+  const textBlock = data.content?.find((c) => c.type === "text");
+  return (textBlock?.text ?? "").trim();
+}
