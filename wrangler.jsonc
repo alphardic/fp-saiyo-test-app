@@ -7,5 +7,8 @@
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
+  },
+  "vars": {
+    "SUPABASE_URL": "https://vniwiybntjdbfpmumpvn.supabase.co"
   }
 }
