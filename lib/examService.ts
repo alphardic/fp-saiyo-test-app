@@ -9,6 +9,76 @@ export class ExamAccessError extends Error {
   }
 }
 
+const TARGET_QUESTION_COUNT = 20;
+
+function shuffle<T>(arr: T[]): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+/**
+ * 承認済み問題プールから、分野(field)ごとに偏りが出ないようバランス良く
+ * target件を抽出する。
+ *
+ * 手順:
+ *  1. 分野ごとにグルーピングし、各分野内をシャッフル
+ *  2. まず全分野から均等に base = floor(target / 分野数) 件ずつ取る
+ *  3. 余り(target - base * 分野数)件は、まだ在庫のある分野からランダムに1件ずつ追加
+ *  4. それでも不足する場合(在庫切れ等)は残りの問題から補充
+ *  5. 最終的な出題順序もシャッフルする
+ */
+export function drawBalancedQuestionIds(
+  pool: { id: string; field: string }[],
+  target: number = TARGET_QUESTION_COUNT
+): string[] {
+  const byField = new Map<string, string[]>();
+  for (const q of pool) {
+    const list = byField.get(q.field) ?? [];
+    list.push(q.id);
+    byField.set(q.field, list);
+  }
+  for (const [field, ids] of byField) {
+    byField.set(field, shuffle(ids));
+  }
+
+  const fields = shuffle([...byField.keys()]);
+  const fieldCount = fields.length;
+  if (fieldCount === 0) return [];
+
+  const base = Math.floor(target / fieldCount);
+  const selected: string[] = [];
+
+  // 1. 各分野からbase件ずつ
+  for (const field of fields) {
+    const ids = byField.get(field)!;
+    const take = ids.splice(0, base);
+    selected.push(...take);
+  }
+
+  // 2. 余り件数を、在庫のある分野からランダムに1件ずつ追加
+  let remainder = target - selected.length;
+  const fieldsWithStock = shuffle(fields.filter((f) => (byField.get(f)?.length ?? 0) > 0));
+  for (const field of fieldsWithStock) {
+    if (remainder <= 0) break;
+    const ids = byField.get(field)!;
+    if (ids.length === 0) continue;
+    selected.push(ids.shift()!);
+    remainder--;
+  }
+
+  // 3. まだ不足していれば(問題数が少ない等)、残りの在庫から補充
+  if (remainder > 0) {
+    const leftover = shuffle([...byField.values()].flat());
+    selected.push(...leftover.slice(0, remainder));
+  }
+
+  return shuffle(selected).slice(0, target);
+}
+
 /**
  * トークンから候補者を特定し、受験セッション(なければ新規作成)と
  * 出題対象の問題一覧(候補者向け、正解・解説を除いた形)を返す。
@@ -34,16 +104,12 @@ export async function getExamForToken(token: string) {
     .maybeSingle();
 
   if (!session) {
-    // TODO: 13分野からバランスよく抽出するロジックに置き換える(現状は承認済み問題からランダム抽出)。
     const { data: pool } = await supabase
       .from("questions")
-      .select("id")
+      .select("id, field")
       .eq("status", "approved");
 
-    const questionIds = (pool ?? [])
-      .map((q) => q.id)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 20);
+    const questionIds = drawBalancedQuestionIds(pool ?? [], TARGET_QUESTION_COUNT);
 
     const { data: created, error: createError } = await supabase
       .from("exam_sessions")
