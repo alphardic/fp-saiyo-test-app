@@ -33,6 +33,11 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={cls}>{label}</span>;
 }
 
+/**
+ * 管理者向けダッシュボード。
+ * データ取得・候補者登録はサーバー側API(/api/admin/*)経由で行う
+ * (RLS越しの直接アクセスがSupabase側のJWT検証の問題で不安定なため)。
+ */
 export default function AdminDashboardPage() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
@@ -45,6 +50,8 @@ export default function AdminDashboardPage() {
   const [addError, setAddError] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [gradingId, setGradingId] = useState<string | null>(null);
+  const [gradeError, setGradeError] = useState<string | null>(null);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -115,6 +122,29 @@ export default function AdminDashboardPage() {
 
     setName("");
     setEmail("");
+    await load();
+  }
+
+  async function gradeSession(sessionId: string) {
+    setGradeError(null);
+    const token = await getAccessToken();
+    if (!token) {
+      setGradeError("ログインが必要です。");
+      return;
+    }
+    setGradingId(sessionId);
+    const res = await fetch(`/api/admin/sessions/${sessionId}/grade`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+    });
+    setGradingId(null);
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setGradeError(body.error || "採点に失敗しました。");
+      return;
+    }
+
     await load();
   }
 
@@ -233,6 +263,7 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="card">
+          {gradeError && <div className="alert alert-error">{gradeError}</div>}
           <div className="table-wrap">
             <table className="table">
               <thead>
@@ -254,8 +285,16 @@ export default function AdminDashboardPage() {
                     <td>
                       {s.status === "graded" ? (
                         <a href={"/admin/report/" + s.id}>詳細を見る</a>
+                      ) : s.status === "submitted" ? (
+                        <button
+                          onClick={() => gradeSession(s.id)}
+                          disabled={gradingId === s.id}
+                          className="btn btn-outline btn-sm"
+                        >
+                          {gradingId === s.id ? "採点中..." : "採点する"}
+                        </button>
                       ) : (
-                        <span className="text-muted">採点待ち</span>
+                        <span className="text-muted">未受験</span>
                       )}
                     </td>
                   </tr>
