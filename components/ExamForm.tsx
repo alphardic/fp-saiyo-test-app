@@ -46,55 +46,72 @@ export default function ExamForm({ token, questions }: Props) {
     }
   }
 
+  const answeredCount = questions.filter((q) => (answers[q.id] ?? "").trim() !== "")
+    .length;
+
   if (submitted) {
-    return <p>回答を提出しました。ご協力ありがとうございました。</p>;
+    return (
+      <div className="alert alert-success" style={{ marginBottom: 0 }}>
+        回答を提出しました。ご協力ありがとうございました。
+      </div>
+    );
   }
 
   return (
     <div>
+      <div className="alert alert-info">
+        回答済み: {answeredCount} / {questions.length} 問
+      </div>
+
       {questions.map((q, idx) => (
-        <div
-          key={q.id}
-          style={{
-            marginBottom: 24,
-            paddingBottom: 16,
-            borderBottom: "1px solid #ddd",
-          }}
-        >
-          <p style={{ fontWeight: "bold" }}>
-            問{idx + 1}({q.field} / {q.type})
-          </p>
-          <p>{q.question}</p>
+        <div key={q.id} className="question-card">
+          <div className="question-meta">
+            <span className="question-number">{idx + 1}</span>
+            <span className="question-tag">{q.field}</span>
+            <span className="question-tag">{q.type}</span>
+          </div>
+          <p className="question-text">{q.question}</p>
 
           {q.type === "選択式" && q.choices ? (
             <div>
-              {q.choices.map((choice) => (
-                <label key={choice} style={{ display: "block", margin: "4px 0" }}>
-                  <input
-                    type="radio"
-                    name={q.id}
-                    value={choice.slice(0, 1)}
-                    checked={answers[q.id] === choice.slice(0, 1)}
-                    onChange={(e) => setAnswer(q.id, e.target.value)}
-                  />{" "}
-                  {choice}
-                </label>
-              ))}
+              {q.choices.map((choice) => {
+                const value = choice.slice(0, 1);
+                const selected = answers[q.id] === value;
+                return (
+                  <label
+                    key={choice}
+                    className={`choice${selected ? " choice-selected" : ""}`}
+                  >
+                    <input
+                      type="radio"
+                      name={q.id}
+                      value={value}
+                      checked={selected}
+                      onChange={(e) => setAnswer(q.id, e.target.value)}
+                    />
+                    <span>{choice}</span>
+                  </label>
+                );
+              })}
             </div>
           ) : (
             <textarea
               rows={5}
-              style={{ width: "100%" }}
               value={answers[q.id] ?? ""}
               onChange={(e) => setAnswer(q.id, e.target.value)}
+              placeholder="回答を入力してください"
             />
           )}
         </div>
       ))}
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <div className="alert alert-error mt-24">{error}</div>}
 
-      <button onClick={handleSubmit} disabled={submitting}>
+      <button
+        onClick={handleSubmit}
+        disabled={submitting}
+        className="btn btn-gold btn-block mt-24"
+      >
         {submitting ? "提出中..." : "回答を提出する"}
       </button>
     </div>

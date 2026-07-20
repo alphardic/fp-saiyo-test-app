@@ -12,25 +12,33 @@ export default async function ExamPage({
     );
 
     return (
-      <main style={{ padding: 24, maxWidth: 800, margin: "0 auto" }}>
-        <h1>FP業界 入社適性テスト</h1>
-        <p>
-          {candidateName} 様、受験を開始してください。全{questions.length}問です。
-        </p>
-        <ExamForm
-          token={params.token}
-          sessionId={sessionId}
-          questions={questions}
-        />
+      <main className="page page-wide">
+        <div className="page-header">
+          <h1>FP業界 入社適性テスト</h1>
+          <p>
+            {candidateName} 様、受験を開始してください。全{questions.length}問です。
+          </p>
+        </div>
+        <div className="card">
+          <ExamForm
+            token={params.token}
+            sessionId={sessionId}
+            questions={questions}
+          />
+        </div>
       </main>
     );
   } catch (e) {
     const message =
       e instanceof ExamAccessError ? e.message : "予期しないエラーが発生しました。";
     return (
-      <main style={{ padding: 24, maxWidth: 640, margin: "0 auto" }}>
-        <h1>受験できません</h1>
-        <p>{message}</p>
+      <main className="page page-narrow">
+        <div className="card">
+          <h1>受験できません</h1>
+          <p className="text-muted" style={{ marginBottom: 0 }}>
+            {message}
+          </p>
+        </div>
       </main>
     );
   }
