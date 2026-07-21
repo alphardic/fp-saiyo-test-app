@@ -74,6 +74,13 @@ export async function POST(
 
   const allGraded = results.every((r) => r.status === "fulfilled");
 
+  // 失敗した採点の原因をログに残す(これが無いとCloudflareのReal-time logsに何も出ない)
+  for (const r of results) {
+    if (r.status === "rejected") {
+      console.error("AI再採点に失敗しました:", r.reason);
+    }
+  }
+
   await supabase
     .from("exam_sessions")
     .update({ status: allGraded ? "graded" : "submitted" })

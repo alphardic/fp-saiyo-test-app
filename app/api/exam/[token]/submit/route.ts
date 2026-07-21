@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { gradeDescriptiveAnswer } from "@/lib/aiGrading";
+import { sendSubmissionNotification } from "@/lib/notify";
 
 interface SubmitBody {
   answers: { questionId: string; answer: string }[];
@@ -12,6 +13,7 @@ interface SubmitBody {
  * 選択式はここで自動採点。記述式はAnthropic APIで即時にAI採点する。
  * 記述式の採点が全て成功したらセッションを"graded"、
  * 一部でも失敗したら"submitted"のままにして、管理画面から再採点できるようにする。
+ * 保存が成功した時点で、採用担当宛てに通知メールを送る。
  */
 export async function POST(
   req: NextRequest,
@@ -23,7 +25,7 @@ export async function POST(
 
   const { data: candidate } = await supabase
     .from("candidates")
-    .select("id")
+    .select("id, name, email")
     .eq("invite_token", token)
     .single();
 
@@ -67,7 +69,6 @@ export async function POST(
       session_id: session.id,
       question_id: questionId,
       candidate_answer: answer,
-      // 選択式は正解記号との一致で自動採点。記述式はnull(この後AI採点)。
       is_correct: isSelectType ? answer === q?.answer : null,
       ai_score: null as number | null,
       ai_grading_notes: null as string | null,
@@ -85,7 +86,11 @@ export async function POST(
     );
   }
 
-  // 記述式回答をAI採点する(並列実行)
+  await sendSubmissionNotification({
+    candidateName: candidate.name,
+    candidateEmail: candidate.email,
+  });
+
   const descriptiveRows = rows.filter(
     (r) => questionMap.get(r.question_id)?.type === "記述式"
   );
@@ -109,6 +114,13 @@ export async function POST(
   );
 
   const allGraded = results.every((r) => r.status === "fulfilled");
+
+  // 失敗した採点の原因をログに残す(これが無いとCloudflareのReal-time logsに何も出ない)
+  for (const r of results) {
+    if (r.status === "rejected") {
+      console.error("AI採点に失敗しました:", r.reason);
+    }
+  }
 
   await supabase
     .from("exam_sessions")
