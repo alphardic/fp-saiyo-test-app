@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
@@ -128,7 +128,7 @@ function RadarChart({ candidates }: { candidates: CandidateResult[] }) {
   );
 }
 
-export default function ComparePage() {
+function ComparePageInner() {
   const searchParams = useSearchParams();
   const ids = (searchParams.get("ids") ?? "").split(",").filter(Boolean);
 
@@ -288,5 +288,19 @@ export default function ComparePage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function ComparePage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="page">
+          <p className="text-muted">読み込み中...</p>
+        </main>
+      }
+    >
+      <ComparePageInner />
+    </Suspense>
   );
 }
