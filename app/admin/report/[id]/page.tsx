@@ -10,14 +10,9 @@ const FIELDS = [
   "株式投資",
   "投資信託",
   "債券",
-  "iDeCo",
-  "NISA",
   "居住用不動産",
   "投資用不動産",
-  "個人の税金",
   "保険",
-  "家計管理",
-  "ライフプラン",
 ];
 
 interface QuestionBreakdown {
@@ -234,9 +229,24 @@ export default function ReportPage() {
                           {q.isCorrect ? "正解" : "不正解"}
                         </span>
                       ) : (
-                        <span title={q.aiNotes ?? ""}>
-                          {q.aiScore !== null ? `${q.aiScore}点` : "未採点"}
-                        </span>
+                        <div>
+                          <div style={{ fontWeight: 600 }}>
+                            {q.aiScore !== null ? `${q.aiScore}点` : "未採点"}
+                          </div>
+                          {q.aiNotes && (
+                            <div
+                              className="text-muted"
+                              style={{
+                                fontSize: 12,
+                                marginTop: 4,
+                                maxWidth: 240,
+                                whiteSpace: "pre-wrap",
+                              }}
+                            >
+                              {q.aiNotes}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>

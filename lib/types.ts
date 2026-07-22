@@ -4,14 +4,9 @@ export const FIELDS = [
   "株式投資",
   "投資信託",
   "債券",
-  "iDeCo",
-  "NISA",
   "居住用不動産",
   "投資用不動産",
-  "個人の税金",
   "保険",
-  "家計管理",
-  "ライフプラン",
 ] as const;
 
 export type Field = (typeof FIELDS)[number];
