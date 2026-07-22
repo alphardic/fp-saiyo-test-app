@@ -111,16 +111,35 @@ export async function getExamForToken(token: string) {
 
     const questionIds = drawBalancedQuestionIds(pool ?? [], TARGET_QUESTION_COUNT);
 
+    // 同時アクセス(メールのリンクプレビュー等)でセッションが複数作られないよう、
+    // candidate_id の一意制約に対してupsertする(既にあれば新規作成せず既存行を返す)。
     const { data: created, error: createError } = await supabase
       .from("exam_sessions")
-      .insert({ candidate_id: candidate.id, question_ids: questionIds, status: "not_started" })
+      .upsert(
+        { candidate_id: candidate.id, question_ids: questionIds, status: "not_started" },
+        { onConflict: "candidate_id", ignoreDuplicates: true }
+      )
       .select("id, status, question_ids")
-      .single();
+      .maybeSingle();
 
-    if (createError || !created) {
+    if (createError) {
       throw new ExamAccessError("受験セッションの作成に失敗しました。", 500);
     }
-    session = created;
+
+    if (created) {
+      session = created;
+    } else {
+      // ignoreDuplicates時、他リクエストが先に作成済みだと行が返らないため取り直す
+      const { data: existing } = await supabase
+        .from("exam_sessions")
+        .select("id, status, question_ids")
+        .eq("candidate_id", candidate.id)
+        .single();
+      if (!existing) {
+        throw new ExamAccessError("受験セッションの作成に失敗しました。", 500);
+      }
+      session = existing;
+    }
   }
 
   if (session.status === "submitted" || session.status === "graded") {
