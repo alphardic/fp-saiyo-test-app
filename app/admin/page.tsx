@@ -53,6 +53,8 @@ export default function AdminDashboardPage() {
   const [gradingId, setGradingId] = useState<string | null>(null);
   const [gradeError, setGradeError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showInviteList, setShowInviteList] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -153,11 +155,50 @@ export default function AdminDashboardPage() {
     setSelectedIds((cur) =>
       cur.includes(sessionId) ? cur.filter((x) => x !== sessionId) : [...cur, sessionId]
     );
+    setShowInviteList(false);
   }
 
+  function selectAllNotStarted() {
+    setSelectedIds(sessions.filter((s) => s.status === "not_started").map((s) => s.id));
+    setShowInviteList(false);
+  }
+
+  function clearSelection() {
+    setSelectedIds([]);
+    setShowInviteList(false);
+  }
+
+  const canCompare =
+    selectedIds.length >= 2 &&
+    selectedIds.every((id) => sessions.find((s) => s.id === id)?.status === "graded");
+
   function goToCompare() {
-    if (selectedIds.length < 2) return;
+    if (!canCompare) return;
     window.location.href = "/admin/compare?ids=" + selectedIds.join(",");
+  }
+
+  function buildInviteListText(): string {
+    const blocks: string[] = [];
+    for (const id of selectedIds) {
+      const s = sessions.find((x) => x.id === id);
+      if (!s || !s.candidates) continue;
+      const cand = candidates.find((c) => c.email === s.candidates!.email);
+      if (!cand) continue;
+      const link = origin + "/exam/" + cand.invite_token;
+      blocks.push(`${cand.name} <${cand.email}>\n${link}`);
+    }
+    return blocks.join("\n\n");
+  }
+
+  async function copyInviteList() {
+    const text = buildInviteListText();
+    try {
+      await navigator.clipboard.writeText(text);
+      setInviteCopied(true);
+      setTimeout(() => setInviteCopied(false), 2000);
+    } catch {
+      prompt("この内容をコピーしてください:", text);
+    }
   }
 
   async function copyLink(id: string, token: string) {
@@ -281,20 +322,73 @@ export default function AdminDashboardPage() {
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
+              flexWrap: "wrap",
+              gap: 8,
               marginBottom: 12,
             }}
           >
             <span className="text-muted" style={{ fontSize: 13 }}>
-              採点済みの候補者にチェックを入れると比較できます(2〜6名)。
+              候補者にチェックを入れると、比較(採点済み2〜6名)や招待リンクの一括表示ができます。
             </span>
-            <button
-              onClick={goToCompare}
-              disabled={selectedIds.length < 2}
-              className="btn btn-primary btn-sm"
-            >
-              選択した{selectedIds.length}名を比較する
-            </button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={selectAllNotStarted} className="btn btn-outline btn-sm">
+                未受験の全員を選択
+              </button>
+              <button
+                onClick={clearSelection}
+                disabled={selectedIds.length === 0}
+                className="btn btn-outline btn-sm"
+              >
+                選択解除
+              </button>
+              <button
+                onClick={() => setShowInviteList(true)}
+                disabled={selectedIds.length === 0}
+                className="btn btn-outline btn-sm"
+              >
+                招待リンクを一覧表示
+              </button>
+              <button onClick={goToCompare} disabled={!canCompare} className="btn btn-primary btn-sm">
+                選択した{selectedIds.length}名を比較する
+              </button>
+            </div>
           </div>
+
+          {showInviteList && (
+            <div
+              className="card"
+              style={{ background: "#f7f8fa", marginBottom: 16, padding: 16 }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 600 }}>
+                  招待リンク一覧({selectedIds.length}名)
+                </span>
+                <button onClick={copyInviteList} className="btn btn-outline btn-sm">
+                  {inviteCopied ? "コピーしました" : "全てコピー"}
+                </button>
+              </div>
+              <textarea
+                readOnly
+                value={buildInviteListText()}
+                rows={Math.max(4, selectedIds.length * 3)}
+                style={{
+                  width: "100%",
+                  fontFamily: "monospace",
+                  fontSize: 12,
+                  padding: 8,
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+          )}
+
           <div className="table-wrap">
             <table className="table">
               <thead>
@@ -310,13 +404,11 @@ export default function AdminDashboardPage() {
                 {sessions.map((s) => (
                   <tr key={s.id}>
                     <td>
-                      {s.status === "graded" && (
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(s.id)}
-                          onChange={() => toggleSelect(s.id)}
-                        />
-                      )}
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(s.id)}
+                        onChange={() => toggleSelect(s.id)}
+                      />
                     </td>
                     <td>{s.candidates?.name ?? "-"}</td>
                     <td>
