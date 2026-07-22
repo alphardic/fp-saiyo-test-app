@@ -52,6 +52,7 @@ export default function AdminDashboardPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [gradingId, setGradingId] = useState<string | null>(null);
   const [gradeError, setGradeError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -146,6 +147,17 @@ export default function AdminDashboardPage() {
     }
 
     await load();
+  }
+
+  function toggleSelect(sessionId: string) {
+    setSelectedIds((cur) =>
+      cur.includes(sessionId) ? cur.filter((x) => x !== sessionId) : [...cur, sessionId]
+    );
+  }
+
+  function goToCompare() {
+    if (selectedIds.length < 2) return;
+    window.location.href = "/admin/compare?ids=" + selectedIds.join(",");
   }
 
   async function copyLink(id: string, token: string) {
@@ -264,10 +276,30 @@ export default function AdminDashboardPage() {
 
         <div className="card">
           {gradeError && <div className="alert alert-error">{gradeError}</div>}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <span className="text-muted" style={{ fontSize: 13 }}>
+              採点済みの候補者にチェックを入れると比較できます(2〜6名)。
+            </span>
+            <button
+              onClick={goToCompare}
+              disabled={selectedIds.length < 2}
+              className="btn btn-primary btn-sm"
+            >
+              選択した{selectedIds.length}名を比較する
+            </button>
+          </div>
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
+                  <th></th>
                   <th>候補者</th>
                   <th>状態</th>
                   <th>提出日時</th>
@@ -277,6 +309,15 @@ export default function AdminDashboardPage() {
               <tbody>
                 {sessions.map((s) => (
                   <tr key={s.id}>
+                    <td>
+                      {s.status === "graded" && (
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(s.id)}
+                          onChange={() => toggleSelect(s.id)}
+                        />
+                      )}
+                    </td>
                     <td>{s.candidates?.name ?? "-"}</td>
                     <td>
                       <StatusBadge status={s.status} />

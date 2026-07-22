@@ -2,21 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/adminAuth";
 import { generateOverallSummary } from "@/lib/aiGrading";
-import { FIELDS } from "@/lib/types";
-
-interface AnswerRow {
-  question_id: string;
-  candidate_answer: string | null;
-  is_correct: boolean | null;
-  ai_score: number | null;
-  ai_grading_notes: string | null;
-  questions: {
-    field: string;
-    type: string;
-    question: string;
-    choices: string[] | null;
-  } | null;
-}
+import { computeSessionFieldScores, overallAverage } from "@/lib/scoring";
 
 interface SessionRow {
   id: string;
@@ -29,6 +15,7 @@ interface SessionRow {
 /**
  * GET /api/admin/sessions/[id]/report
  * 分野別スコアを集計し、AIによる総評(reportsテーブルにキャッシュ)を添えて返す。
+ * あわせて、採点済みの全候補者内での総合点の順位・平均点も返す。
  * ?regenerate=1 を付けると総評を強制的に再生成する。
  */
 export async function GET(
@@ -57,33 +44,11 @@ export async function GET(
     );
   }
 
-  const { data: answers } = await supabase
-    .from("answers")
-    .select(
-      "question_id, candidate_answer, is_correct, ai_score, ai_grading_notes, questions(field, type, question, choices)"
-    )
-    .eq("session_id", sessionId);
-
-  const typedAnswers = (answers ?? []) as unknown as AnswerRow[];
-
-  // 分野別スコアを集計(選択式は正誤を100/0点、記述式はAIスコアをそのまま使い、分野内で平均)
-  const fieldTotals = new Map<string, { sum: number; count: number }>();
-  for (const a of typedAnswers) {
-    const field = a.questions?.field;
-    if (!field) continue;
-    const score =
-      a.questions?.type === "選択式" ? (a.is_correct ? 100 : 0) : a.ai_score ?? 0;
-    const cur = fieldTotals.get(field) ?? { sum: 0, count: 0 };
-    cur.sum += score;
-    cur.count += 1;
-    fieldTotals.set(field, cur);
-  }
-
-  const fieldScores: Record<string, number> = {};
-  for (const field of FIELDS) {
-    const t = fieldTotals.get(field);
-    fieldScores[field] = t ? Math.round(t.sum / t.count) : 0;
-  }
+  const { fieldScores, questionBreakdown } = await computeSessionFieldScores(
+    supabase,
+    sessionId
+  );
+  const thisOverall = overallAverage(fieldScores);
 
   const { data: existingReport } = await supabase
     .from("reports")
@@ -125,15 +90,29 @@ export async function GET(
       .eq("id", existingReport.id);
   }
 
-  const questionBreakdown = typedAnswers.map((a) => ({
-    field: a.questions?.field ?? "-",
-    type: a.questions?.type ?? "-",
-    question: a.questions?.question ?? "",
-    candidateAnswer: a.candidate_answer,
-    isCorrect: a.is_correct,
-    aiScore: a.ai_score,
-    aiNotes: a.ai_grading_notes,
-  }));
+  // 採点済みの全候補者内での順位・平均点を計算する
+  const { data: gradedSessions } = await supabase
+    .from("exam_sessions")
+    .select("id")
+    .eq("status", "graded");
+
+  let rank: number | null = null;
+  let totalCandidates: number | null = null;
+  let cohortAverage: number | null = null;
+
+  if (gradedSessions && gradedSessions.length > 0) {
+    const overalls = await Promise.all(
+      gradedSessions.map(async (s) => {
+        if (s.id === sessionId) return thisOverall;
+        const { fieldScores: fs } = await computeSessionFieldScores(supabase, s.id);
+        return overallAverage(fs);
+      })
+    );
+    totalCandidates = overalls.length;
+    cohortAverage = Math.round(overalls.reduce((a, b) => a + b, 0) / overalls.length);
+    const sorted = [...overalls].sort((a, b) => b - a);
+    rank = sorted.indexOf(thisOverall) + 1;
+  }
 
   return NextResponse.json({
     candidateName: typedSession.candidates?.name ?? "-",
@@ -142,5 +121,11 @@ export async function GET(
     fieldScores,
     overallSummary,
     questionBreakdown,
+    ranking: {
+      overallScore: thisOverall,
+      rank,
+      totalCandidates,
+      cohortAverage,
+    },
   });
 }

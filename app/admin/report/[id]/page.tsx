@@ -25,6 +25,13 @@ interface QuestionBreakdown {
   aiNotes: string | null;
 }
 
+interface Ranking {
+  overallScore: number;
+  rank: number | null;
+  totalCandidates: number | null;
+  cohortAverage: number | null;
+}
+
 interface ReportData {
   candidateName: string;
   candidateEmail: string;
@@ -32,6 +39,7 @@ interface ReportData {
   fieldScores: Record<string, number>;
   overallSummary: string | null;
   questionBreakdown: QuestionBreakdown[];
+  ranking?: Ranking;
 }
 
 function scoreColor(score: number) {
@@ -148,6 +156,39 @@ export default function ReportPage() {
           </button>
         </div>
       </div>
+
+      {data.ranking && data.ranking.rank && data.ranking.totalCandidates && (
+        <div className="section">
+          <div className="section-title">
+            <span className="dot" />
+            <h2>全体での位置付け</h2>
+          </div>
+          <div className="card" style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
+            <div>
+              <div className="text-muted" style={{ fontSize: 13 }}>
+                順位(採点済み{data.ranking.totalCandidates}名中)
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "var(--color-navy)" }}>
+                {data.ranking.rank}位
+              </div>
+            </div>
+            <div>
+              <div className="text-muted" style={{ fontSize: 13 }}>
+                総合スコア(あなた)
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 700 }}>{data.ranking.overallScore}点</div>
+            </div>
+            <div>
+              <div className="text-muted" style={{ fontSize: 13 }}>
+                全体平均
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "var(--color-text-muted)" }}>
+                {data.ranking.cohortAverage}点
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="section">
         <div className="section-title">

@@ -158,3 +158,63 @@ ${scoresText}
   const textBlock = data.content?.find((c) => c.type === "text");
   return (textBlock?.text ?? "").trim();
 }
+
+/**
+ * 複数候補者の分野別スコアを比較し、それぞれの強み・弱みの傾向、
+ * 候補者間の違いを採用担当者向けにまとめたコメントをAnthropic Claude APIで生成する。
+ */
+export async function generateComparisonSummary(params: {
+  candidates: { name: string; fieldScores: Record<string, number> }[];
+}): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY が設定されていません。");
+  }
+
+  const table = params.candidates
+    .map((c) => {
+      const scores = Object.entries(c.fieldScores)
+        .map(([field, score]) => `${field}:${score}点`)
+        .join(" / ");
+      return `【${c.name}】${scores}`;
+    })
+    .join("\n");
+
+  const prompt = `あなたはFP(ファイナンシャルプランナー)業界の採用担当者向けに、
+複数候補者の入社適性テスト結果を比較分析するAIです。
+
+以下は各候補者の分野別スコア(0〜100点)です。
+
+${table}
+
+この結果をもとに、採用担当者向けに、候補者間の傾向の違いを150〜250字程度の
+日本語の文章で簡潔にまとめてください。具体的には、誰がどの分野で相対的に
+強い・弱いか、候補者間で特に差が大きい分野、全員に共通する傾向があれば
+それにも触れてください。出力は分析文章のみとし、見出しや箇条書き、
+前置きは使わないでください。`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 500,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`AI比較分析APIエラー(${res.status}): ${text.slice(0, 300)}`);
+  }
+
+  const data2 = (await res.json()) as {
+    content: { type: string; text?: string }[];
+  };
+  const textBlock2 = data2.content?.find((c) => c.type === "text");
+  return (textBlock2?.text ?? "").trim();
+}
