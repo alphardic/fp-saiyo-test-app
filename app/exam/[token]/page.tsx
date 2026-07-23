@@ -19,6 +19,9 @@ export default async function ExamPage({
             {candidateName} 様、受験を開始してください。全{questions.length}問です。
           </p>
         </div>
+        <div className="alert alert-error" style={{ marginBottom: 16 }}>
+          本テストはご自身の知識・経験に基づく判断力を測定するものです。検索エンジンや生成AI(ChatGPT等)、書籍・メモ等の参照はご遠慮ください。
+        </div>
         <div className="card">
           <ExamForm
             token={params.token}

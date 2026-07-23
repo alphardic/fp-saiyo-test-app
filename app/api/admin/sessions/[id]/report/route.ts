@@ -9,6 +9,9 @@ interface SessionRow {
   status: string;
   submitted_at: string | null;
   candidate_id: string;
+  tab_switch_count: number | null;
+  tab_away_ms: number | null;
+  paste_blocked_count: number | null;
   candidates: { name: string; email: string } | null;
 }
 
@@ -31,7 +34,9 @@ export async function GET(
 
   const { data: session } = await supabase
     .from("exam_sessions")
-    .select("id, status, submitted_at, candidate_id, candidates(name, email)")
+    .select(
+      "id, status, submitted_at, candidate_id, tab_switch_count, tab_away_ms, paste_blocked_count, candidates(name, email)"
+    )
     .eq("id", sessionId)
     .maybeSingle();
 
@@ -126,6 +131,11 @@ export async function GET(
       rank,
       totalCandidates,
       cohortAverage,
+    },
+    integrity: {
+      tabSwitchCount: typedSession.tab_switch_count ?? 0,
+      tabAwaySeconds: Math.round((typedSession.tab_away_ms ?? 0) / 1000),
+      pasteBlockedCount: typedSession.paste_blocked_count ?? 0,
     },
   });
 }

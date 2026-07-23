@@ -32,6 +32,12 @@ interface Ranking {
   cohortAverage: number | null;
 }
 
+interface Integrity {
+  tabSwitchCount: number;
+  tabAwaySeconds: number;
+  pasteBlockedCount: number;
+}
+
 interface ReportData {
   candidateName: string;
   candidateEmail: string;
@@ -40,6 +46,7 @@ interface ReportData {
   overallSummary: string | null;
   questionBreakdown: QuestionBreakdown[];
   ranking?: Ranking;
+  integrity?: Integrity;
 }
 
 function scoreColor(score: number) {
@@ -156,6 +163,34 @@ export default function ReportPage() {
           </button>
         </div>
       </div>
+
+      {data.integrity &&
+        (data.integrity.tabSwitchCount > 0 || data.integrity.pasteBlockedCount > 0) && (
+          <div className="section">
+            <div className="section-title">
+              <span className="dot" />
+              <h2>受験中の挙動について</h2>
+            </div>
+            <div className="alert alert-error" style={{ marginBottom: 0 }}>
+              <p style={{ marginBottom: 4 }}>
+                受験中に以下の挙動が検知されました。検索・生成AI利用の可能性を含め、参考情報としてご確認ください(誤検知の可能性もあります)。
+              </p>
+              <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
+                {data.integrity.tabSwitchCount > 0 && (
+                  <li>
+                    タブ・画面の切り替え: {data.integrity.tabSwitchCount}回(離脱合計 約
+                    {data.integrity.tabAwaySeconds}秒)
+                  </li>
+                )}
+                {data.integrity.pasteBlockedCount > 0 && (
+                  <li>
+                    記述式回答欄への貼り付け試行: {data.integrity.pasteBlockedCount}回(貼り付けはブロック済み)
+                  </li>
+                )}
+              </ul>
+            </div>
+          </div>
+        )}
 
       {data.ranking && data.ranking.rank && data.ranking.totalCandidates && (
         <div className="section">

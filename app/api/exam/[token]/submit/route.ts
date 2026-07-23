@@ -5,6 +5,9 @@ import { sendSubmissionNotification } from "@/lib/notify";
 
 interface SubmitBody {
   answers: { questionId: string; answer: string }[];
+  tabSwitchCount?: number;
+  tabAwayMs?: number;
+  pasteBlockedCount?: number;
 }
 
 /**
@@ -69,6 +72,7 @@ export async function POST(
       session_id: session.id,
       question_id: questionId,
       candidate_answer: answer,
+      // 選択式は正解記号との一致で自動採点。記述式はnull(この後AI採点)。
       is_correct: isSelectType ? answer === q?.answer : null,
       ai_score: null as number | null,
       ai_grading_notes: null as string | null,
@@ -86,11 +90,16 @@ export async function POST(
     );
   }
 
+  // 回答の保存が完了した時点で、採用担当宛てに通知メールを送る
+  // (Cloudflare Workersはレスポンス送信後に処理が打ち切られることがあるため、
+  //  ここでは完了を待つ。sendSubmissionNotification自体は内部で例外を握りつぶすため、
+  //  通知メールの失敗が候補者の提出処理に影響することはない)
   await sendSubmissionNotification({
     candidateName: candidate.name,
     candidateEmail: candidate.email,
   });
 
+  // 記述式回答をAI採点する(並列実行)
   const descriptiveRows = rows.filter(
     (r) => questionMap.get(r.question_id)?.type === "記述式"
   );
@@ -127,6 +136,9 @@ export async function POST(
     .update({
       status: allGraded ? "graded" : "submitted",
       submitted_at: new Date().toISOString(),
+      tab_switch_count: body.tabSwitchCount ?? 0,
+      tab_away_ms: body.tabAwayMs ?? 0,
+      paste_blocked_count: body.pasteBlockedCount ?? 0,
     })
     .eq("id", session.id);
 
