@@ -7,6 +7,7 @@ interface SessionRow {
   id: string;
   status: string;
   submitted_at: string | null;
+  candidate_id: string;
   candidates: { name: string; email: string } | null;
 }
 
@@ -16,7 +17,15 @@ interface CandidateRow {
   email: string;
   invite_token: string;
   created_at: string;
+  age: number | null;
+  fp_experience: string | null;
+  fp_license: string | null;
+  fp_affiliation: string | null;
 }
+
+const FP_EXPERIENCE_OPTIONS = ["未経験", "経験者"];
+const FP_LICENSE_OPTIONS = ["なし", "3級", "2級", "1級", "AFP", "CFP"];
+const FP_AFFILIATION_OPTIONS = ["非FP", "他社FP", "当社FP"];
 
 const STATUS_LABEL: Record<string, string> = {
   not_started: "未受験",
@@ -46,6 +55,10 @@ export default function AdminDashboardPage() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [age, setAge] = useState("");
+  const [fpExperience, setFpExperience] = useState("");
+  const [fpLicense, setFpLicense] = useState("");
+  const [fpAffiliation, setFpAffiliation] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
@@ -55,11 +68,24 @@ export default function AdminDashboardPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showInviteList, setShowInviteList] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [myRole, setMyRole] = useState<string | null>(null);
 
   useEffect(() => {
     setOrigin(window.location.origin);
     load();
+    loadMyRole();
   }, []);
+
+  async function loadMyRole() {
+    const token = await getAccessToken();
+    if (!token) return;
+    const res = await fetch("/api/admin/me", {
+      headers: { Authorization: "Bearer " + token },
+    });
+    if (!res.ok) return;
+    const body = await res.json();
+    setMyRole(body.role ?? null);
+  }
 
   async function getAccessToken(): Promise<string | null> {
     const { data } = await supabaseBrowser.auth.getSession();
@@ -113,7 +139,14 @@ export default function AdminDashboardPage() {
         "Content-Type": "application/json",
         Authorization: "Bearer " + token,
       },
-      body: JSON.stringify({ name, email }),
+      body: JSON.stringify({
+        name,
+        email,
+        age: age === "" ? null : Number(age),
+        fpExperience: fpExperience || null,
+        fpLicense: fpLicense || null,
+        fpAffiliation: fpAffiliation || null,
+      }),
     });
     setAdding(false);
 
@@ -125,6 +158,10 @@ export default function AdminDashboardPage() {
 
     setName("");
     setEmail("");
+    setAge("");
+    setFpExperience("");
+    setFpLicense("");
+    setFpAffiliation("");
     await load();
   }
 
@@ -238,8 +275,17 @@ export default function AdminDashboardPage() {
   return (
     <main className="page page-wide">
       <div className="page-header">
-        <h1>管理ダッシュボード</h1>
-        <p>候補者の招待と受験状況を管理します。</p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <h1>管理ダッシュボード</h1>
+            <p>候補者の招待と受験状況を管理します。</p>
+          </div>
+          {myRole === "super_admin" && (
+            <a href="/admin/admins" className="btn btn-outline btn-sm">
+              管理者管理
+            </a>
+          )}
+        </div>
       </div>
 
       <div className="section">
@@ -270,6 +316,64 @@ export default function AdminDashboardPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
+          </div>
+          <div className="form-row" style={{ marginBottom: 16 }}>
+            <div className="field">
+              <label htmlFor="cand-age">年齢(任意)</label>
+              <input
+                id="cand-age"
+                type="number"
+                min={0}
+                placeholder="30"
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="cand-fp-exp">金融・FP実務経験(任意)</label>
+              <select
+                id="cand-fp-exp"
+                value={fpExperience}
+                onChange={(e) => setFpExperience(e.target.value)}
+              >
+                <option value="">未選択</option>
+                {FP_EXPERIENCE_OPTIONS.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="cand-fp-license">FP資格(任意)</label>
+              <select
+                id="cand-fp-license"
+                value={fpLicense}
+                onChange={(e) => setFpLicense(e.target.value)}
+              >
+                <option value="">未選択</option>
+                {FP_LICENSE_OPTIONS.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="cand-fp-affiliation">区分(任意)</label>
+              <select
+                id="cand-fp-affiliation"
+                value={fpAffiliation}
+                onChange={(e) => setFpAffiliation(e.target.value)}
+              >
+                <option value="">未選択</option>
+                {FP_AFFILIATION_OPTIONS.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button onClick={handleAddCandidate} disabled={adding} className="btn btn-primary">
               {adding ? "登録中..." : "候補者を追加"}
             </button>
@@ -282,6 +386,7 @@ export default function AdminDashboardPage() {
                 <tr>
                   <th>氏名</th>
                   <th>メール</th>
+                  <th>属性</th>
                   <th>受験リンク</th>
                 </tr>
               </thead>
@@ -290,6 +395,16 @@ export default function AdminDashboardPage() {
                   <tr key={c.id}>
                     <td>{c.name}</td>
                     <td className="text-muted">{c.email}</td>
+                    <td className="text-muted" style={{ fontSize: 12 }}>
+                      {[
+                        c.age !== null ? `${c.age}歳` : null,
+                        c.fp_affiliation,
+                        c.fp_license,
+                        c.fp_experience,
+                      ]
+                        .filter(Boolean)
+                        .join(" / ") || "-"}
+                    </td>
                     <td>
                       <button
                         onClick={() => copyLink(c.id, c.invite_token)}

@@ -14,12 +14,14 @@ export async function GET(req: NextRequest) {
 
   const { data: candidates, error: candidateError } = await supabase
     .from("candidates")
-    .select("id, name, email, invite_token, created_at")
+    .select(
+      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation"
+    )
     .order("created_at", { ascending: false });
 
   const { data: sessions, error: sessionError } = await supabase
     .from("exam_sessions")
-    .select("id, status, submitted_at, candidates(name, email)")
+    .select("id, status, submitted_at, candidate_id, candidates(name, email)")
     .order("submitted_at", { ascending: false });
 
   if (candidateError || sessionError) {
