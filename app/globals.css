@@ -93,11 +93,10 @@ a {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  object-fit: cover;
+  object-fit: contain;
   flex-shrink: 0;
-  background: #fff;
+  background: transparent;
 }
-
 .topbar-title {
   color: #f4f6f9;
   font-size: 15px;
