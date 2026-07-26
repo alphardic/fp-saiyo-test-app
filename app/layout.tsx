@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FP業界 入社適性テスト",
-  description: "FP業界向け入社適性テストアプリ",
+  title: "金融リテラシーチェックテスト",
+  description: "Supported by Alpha Financial Planners",
 };
 
 export default function RootLayout({
@@ -16,10 +16,11 @@ export default function RootLayout({
       <body>
         <div className="topbar">
           <div className="topbar-inner">
-            <div className="topbar-mark">FP</div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Alpha Financial Planners" className="topbar-mark" />
             <div>
-              <div className="topbar-title">FP業界 入社適性テスト</div>
-              <div className="topbar-sub">Financial Planner Aptitude Test</div>
+              <div className="topbar-title">金融リテラシーチェックテスト</div>
+              <div className="topbar-sub">Supported by Alpha Financial Planners</div>
             </div>
           </div>
         </div>

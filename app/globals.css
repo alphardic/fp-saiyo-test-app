@@ -90,17 +90,12 @@ a {
 }
 
 .topbar-mark {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  background: var(--color-gold);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  color: var(--color-navy-dark);
-  font-size: 15px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
   flex-shrink: 0;
+  background: #fff;
 }
 
 .topbar-title {
