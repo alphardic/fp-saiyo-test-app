@@ -23,6 +23,18 @@ interface CandidateRow {
   fp_affiliation: string | null;
 }
 
+interface LogicCandidateRow {
+  id: string;
+  main_candidate_id: string | null;
+  invite_token: string;
+}
+
+interface LogicSessionRow {
+  id: string;
+  candidate_id: string;
+  status: string;
+}
+
 const FP_EXPERIENCE_OPTIONS = ["未経験", "経験者"];
 const FP_LICENSE_OPTIONS = ["なし", "3級", "2級", "1級", "AFP", "CFP"];
 const FP_AFFILIATION_OPTIONS = ["非FP", "他社FP", "当社FP"];
@@ -42,6 +54,20 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={cls}>{label}</span>;
 }
 
+const LOGIC_STATUS_LABEL: Record<string, string> = {
+  not_started: "未受験",
+  in_progress: "受験中",
+  completed: "完了",
+};
+
+function LogicStatusBadge({ status }: { status: string }) {
+  const label = LOGIC_STATUS_LABEL[status] ?? status;
+  let cls = "badge badge-muted";
+  if (status === "in_progress") cls = "badge badge-progress";
+  if (status === "completed") cls = "badge badge-done";
+  return <span className={cls}>{label}</span>;
+}
+
 /**
  * 管理者向けダッシュボード。
  * データ取得・候補者登録はサーバー側API(/api/admin/*)経由で行う
@@ -50,6 +76,8 @@ function StatusBadge({ status }: { status: string }) {
 export default function AdminDashboardPage() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
+  const [logicCandidates, setLogicCandidates] = useState<LogicCandidateRow[]>([]);
+  const [logicSessions, setLogicSessions] = useState<LogicSessionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -61,14 +89,20 @@ export default function AdminDashboardPage() {
   const [fpAffiliation, setFpAffiliation] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+
   const [origin, setOrigin] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedLogicId, setCopiedLogicId] = useState<string | null>(null);
+  const [issuingLogicId, setIssuingLogicId] = useState<string | null>(null);
   const [gradingId, setGradingId] = useState<string | null>(null);
   const [gradeError, setGradeError] = useState<string | null>(null);
+
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showInviteList, setShowInviteList] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
+
   const [myRole, setMyRole] = useState<string | null>(null);
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAge, setEditAge] = useState("");
   const [editFpExperience, setEditFpExperience] = useState("");
@@ -105,11 +139,9 @@ export default function AdminDashboardPage() {
       setLoading(false);
       return;
     }
-
     const res = await fetch("/api/admin/dashboard", {
       headers: { Authorization: "Bearer " + token },
     });
-
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       setAuthError(
@@ -119,10 +151,11 @@ export default function AdminDashboardPage() {
       setLoading(false);
       return;
     }
-
     const body = await res.json();
     setCandidates(body.candidates ?? []);
     setSessions(body.sessions ?? []);
+    setLogicCandidates(body.logicCandidates ?? []);
+    setLogicSessions(body.logicSessions ?? []);
     setLoading(false);
   }
 
@@ -137,7 +170,6 @@ export default function AdminDashboardPage() {
       setAddError("ログインが必要です。");
       return;
     }
-
     setAdding(true);
     const res = await fetch("/api/admin/candidates", {
       method: "POST",
@@ -155,13 +187,11 @@ export default function AdminDashboardPage() {
       }),
     });
     setAdding(false);
-
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       setAddError(body.error || "登録に失敗しました。");
       return;
     }
-
     setName("");
     setEmail("");
     setAge("");
@@ -184,13 +214,11 @@ export default function AdminDashboardPage() {
       headers: { Authorization: "Bearer " + token },
     });
     setGradingId(null);
-
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       setGradeError(body.error || "採点に失敗しました。");
       return;
     }
-
     await load();
   }
 
@@ -259,7 +287,6 @@ export default function AdminDashboardPage() {
   async function saveEdit(id: string) {
     const token = await getAccessToken();
     if (!token) return;
-
     setSavingEdit(true);
     const res = await fetch(`/api/admin/candidates/${id}`, {
       method: "PATCH",
@@ -272,13 +299,11 @@ export default function AdminDashboardPage() {
       }),
     });
     setSavingEdit(false);
-
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       alert(body.error || "更新に失敗しました。");
       return;
     }
-
     setEditingId(null);
     await load();
   }
@@ -292,6 +317,42 @@ export default function AdminDashboardPage() {
     } catch {
       prompt("このリンクをコピーしてください:", link);
     }
+  }
+
+  function logicCandidateFor(mainCandidateId: string) {
+    return logicCandidates.find((lc) => lc.main_candidate_id === mainCandidateId);
+  }
+
+  function logicSessionFor(logicCandidateId: string) {
+    return logicSessions.find((ls) => ls.candidate_id === logicCandidateId);
+  }
+
+  async function copyLogicLink(id: string, token: string) {
+    const link = origin + "/logic-exam/" + token;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedLogicId(id);
+      setTimeout(() => setCopiedLogicId((cur) => (cur === id ? null : cur)), 2000);
+    } catch {
+      prompt("このリンクをコピーしてください:", link);
+    }
+  }
+
+  async function issueLogicInvite(candidateId: string) {
+    const token = await getAccessToken();
+    if (!token) return;
+    setIssuingLogicId(candidateId);
+    const res = await fetch(`/api/admin/candidates/${candidateId}/logic-invite`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+    });
+    setIssuingLogicId(null);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error || "発行に失敗しました。");
+      return;
+    }
+    await load();
   }
 
   if (loading) {
@@ -338,7 +399,6 @@ export default function AdminDashboardPage() {
           <span className="dot" />
           <h2>候補者の招待</h2>
         </div>
-
         <div className="card">
           <div className="form-row" style={{ marginBottom: 16 }}>
             <div className="field">
@@ -423,9 +483,11 @@ export default function AdminDashboardPage() {
               {adding ? "登録中..." : "候補者を追加"}
             </button>
           </div>
-          {addError && <div className="alert alert-error" style={{ marginBottom: 0 }}>{addError}</div>}
-
-          <div className="table-wrap" style={{ marginTop: addError ? 16 : 0 }}>
+          <p className="text-muted" style={{ fontSize: 12, marginBottom: 0 }}>
+            ※ 登録すると、金融リテラシーチェックテストとロジカルシンキング適性テスト、両方の招待リンクが同時に発行されます。
+          </p>
+          {addError && <div className="alert alert-error" style={{ marginTop: 12, marginBottom: 0 }}>{addError}</div>}
+          <div className="table-wrap" style={{ marginTop: 16 }}>
             <table className="table">
               <thead>
                 <tr>
@@ -433,6 +495,7 @@ export default function AdminDashboardPage() {
                   <th>メール</th>
                   <th>属性</th>
                   <th>受験リンク</th>
+                  <th>ロジカルテスト</th>
                 </tr>
               </thead>
               <tbody>
@@ -441,7 +504,7 @@ export default function AdminDashboardPage() {
                     <tr key={c.id}>
                       <td>{c.name}</td>
                       <td className="text-muted">{c.email}</td>
-                      <td colSpan={2}>
+                      <td colSpan={3}>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                           <input
                             type="number"
@@ -526,6 +589,43 @@ export default function AdminDashboardPage() {
                           {copiedId === c.id ? "コピーしました" : "リンクをコピー"}
                         </button>
                       </td>
+                      <td>
+                        {(() => {
+                          const lc = logicCandidateFor(c.id);
+                          if (!lc) {
+                            return (
+                              <button
+                                onClick={() => issueLogicInvite(c.id)}
+                                disabled={issuingLogicId === c.id}
+                                className="btn btn-outline btn-sm"
+                              >
+                                {issuingLogicId === c.id ? "発行中..." : "招待を発行"}
+                              </button>
+                            );
+                          }
+                          const ls = logicSessionFor(lc.id);
+                          const status = ls?.status ?? "not_started";
+                          return (
+                            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                              <LogicStatusBadge status={status} />
+                              <button
+                                onClick={() => copyLogicLink(c.id, lc.invite_token)}
+                                className="btn btn-outline btn-sm"
+                              >
+                                {copiedLogicId === c.id ? "コピーしました" : "リンクをコピー"}
+                              </button>
+                              {status === "completed" && ls && (
+                                <a
+                                  href={"/admin/logic-test/report/" + ls.id}
+                                  className="btn btn-gold btn-sm"
+                                >
+                                  レポート
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
                     </tr>
                   )
                 )}
@@ -543,7 +643,6 @@ export default function AdminDashboardPage() {
           <span className="dot" />
           <h2>受験状況一覧</h2>
         </div>
-
         <div className="card">
           {gradeError && <div className="alert alert-error">{gradeError}</div>}
           <div
@@ -557,7 +656,7 @@ export default function AdminDashboardPage() {
             }}
           >
             <span className="text-muted" style={{ fontSize: 13 }}>
-              候補者にチェックを入れると、比較(採点済み2〜6名)や招待リンクの一括表示ができます。
+              候補者にチェックを入れると、比較(採点済み2名以上)や招待リンクの一括表示ができます。
             </span>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button onClick={selectAllNotStarted} className="btn btn-outline btn-sm">
