@@ -5,7 +5,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 /**
  * POST /api/admin/candidates
  * 管理画面から候補者を新規登録する。
- * age/fp_experience/fp_license/fp_affiliationは比較分析の絞り込みに使う属性で、任意入力。
+ * 同時に、ロジカルシンキング適性テストの招待リンクも自動発行する。
  */
 export async function POST(req: NextRequest) {
   const authResult = await requireAdmin(req);
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
     fpLicense?: string | null;
     fpAffiliation?: string | null;
   };
+
   const name = body.name?.trim();
   const email = body.email?.trim();
 
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
       : Number(body.age);
 
   const supabase = getSupabaseServerClient();
+
   const { data, error } = await supabase
     .from("candidates")
     .insert({
@@ -50,13 +52,37 @@ export async function POST(req: NextRequest) {
     )
     .single();
 
-  if (error) {
+  if (error || !data) {
     const message =
-      error.code === "23505"
+      error?.code === "23505"
         ? "このメールアドレスは既に登録されています。"
-        : "登録に失敗しました: " + error.message;
+        : "登録に失敗しました: " + (error?.message ?? "");
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  return NextResponse.json({ candidate: data });
+  // ロジカルシンキング適性テストの招待も同時に発行する
+  let logicInviteToken: string | null = null;
+  try {
+    const { data: logicCandidate, error: logicError } = await supabase
+      .from("logic_candidates")
+      .insert({
+        name,
+        email,
+        invite_token: crypto.randomUUID(),
+        main_candidate_id: data.id,
+      })
+      .select("id, invite_token")
+      .single();
+
+    if (!logicError && logicCandidate) {
+      await supabase
+        .from("logic_exam_sessions")
+        .insert({ candidate_id: logicCandidate.id, status: "not_started" });
+      logicInviteToken = logicCandidate.invite_token;
+    }
+  } catch {
+    // ロジカルテスト側の発行に失敗しても、通常の候補者登録は成立させる
+  }
+
+  return NextResponse.json({ candidate: data, logicInviteToken });
 }

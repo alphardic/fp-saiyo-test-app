@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 
 /**
  * GET /api/admin/dashboard
- * 管理画面用: 候補者一覧 + 受験セッション一覧をまとめて返す。
+ * 管理画面用: 候補者一覧 + 受験セッション一覧 + ロジカルテストの状況をまとめて返す。
  */
 export async function GET(req: NextRequest) {
   const authResult = await requireAdmin(req);
@@ -31,5 +31,28 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ candidates, sessions });
+  const candidateIds = (candidates ?? []).map((c) => c.id);
+
+  let logicCandidates: { id: string; main_candidate_id: string | null; invite_token: string }[] = [];
+  let logicSessions: { id: string; candidate_id: string; status: string }[] = [];
+
+  if (candidateIds.length > 0) {
+    const { data: logicCandidatesData } = await supabase
+      .from("logic_candidates")
+      .select("id, main_candidate_id, invite_token")
+      .in("main_candidate_id", candidateIds);
+
+    logicCandidates = logicCandidatesData ?? [];
+
+    const logicCandidateIds = logicCandidates.map((c) => c.id);
+    if (logicCandidateIds.length > 0) {
+      const { data: logicSessionsData } = await supabase
+        .from("logic_exam_sessions")
+        .select("id, candidate_id, status")
+        .in("candidate_id", logicCandidateIds);
+      logicSessions = logicSessionsData ?? [];
+    }
+  }
+
+  return NextResponse.json({ candidates, sessions, logicCandidates, logicSessions });
 }
