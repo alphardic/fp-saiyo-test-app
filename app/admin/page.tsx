@@ -69,6 +69,12 @@ export default function AdminDashboardPage() {
   const [showInviteList, setShowInviteList] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [myRole, setMyRole] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editAge, setEditAge] = useState("");
+  const [editFpExperience, setEditFpExperience] = useState("");
+  const [editFpLicense, setEditFpLicense] = useState("");
+  const [editFpAffiliation, setEditFpAffiliation] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -238,6 +244,45 @@ export default function AdminDashboardPage() {
     }
   }
 
+  function startEdit(c: CandidateRow) {
+    setEditingId(c.id);
+    setEditAge(c.age !== null ? String(c.age) : "");
+    setEditFpExperience(c.fp_experience ?? "");
+    setEditFpLicense(c.fp_license ?? "");
+    setEditFpAffiliation(c.fp_affiliation ?? "");
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+  }
+
+  async function saveEdit(id: string) {
+    const token = await getAccessToken();
+    if (!token) return;
+
+    setSavingEdit(true);
+    const res = await fetch(`/api/admin/candidates/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify({
+        age: editAge === "" ? null : Number(editAge),
+        fpExperience: editFpExperience || null,
+        fpLicense: editFpLicense || null,
+        fpAffiliation: editFpAffiliation || null,
+      }),
+    });
+    setSavingEdit(false);
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error || "更新に失敗しました。");
+      return;
+    }
+
+    setEditingId(null);
+    await load();
+  }
+
   async function copyLink(id: string, token: string) {
     const link = origin + "/exam/" + token;
     try {
@@ -391,30 +436,99 @@ export default function AdminDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {candidates.map((c) => (
-                  <tr key={c.id}>
-                    <td>{c.name}</td>
-                    <td className="text-muted">{c.email}</td>
-                    <td className="text-muted" style={{ fontSize: 12 }}>
-                      {[
-                        c.age !== null ? `${c.age}歳` : null,
-                        c.fp_affiliation,
-                        c.fp_license,
-                        c.fp_experience,
-                      ]
-                        .filter(Boolean)
-                        .join(" / ") || "-"}
-                    </td>
-                    <td>
-                      <button
-                        onClick={() => copyLink(c.id, c.invite_token)}
-                        className="btn btn-outline btn-sm"
-                      >
-                        {copiedId === c.id ? "コピーしました" : "リンクをコピー"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {candidates.map((c) =>
+                  editingId === c.id ? (
+                    <tr key={c.id}>
+                      <td>{c.name}</td>
+                      <td className="text-muted">{c.email}</td>
+                      <td colSpan={2}>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                          <input
+                            type="number"
+                            min={0}
+                            placeholder="年齢"
+                            value={editAge}
+                            onChange={(e) => setEditAge(e.target.value)}
+                            style={{ width: 70 }}
+                          />
+                          <select
+                            value={editFpExperience}
+                            onChange={(e) => setEditFpExperience(e.target.value)}
+                          >
+                            <option value="">実務経験未選択</option>
+                            {FP_EXPERIENCE_OPTIONS.map((v) => (
+                              <option key={v} value={v}>
+                                {v}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={editFpLicense}
+                            onChange={(e) => setEditFpLicense(e.target.value)}
+                          >
+                            <option value="">資格未選択</option>
+                            {FP_LICENSE_OPTIONS.map((v) => (
+                              <option key={v} value={v}>
+                                {v}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={editFpAffiliation}
+                            onChange={(e) => setEditFpAffiliation(e.target.value)}
+                          >
+                            <option value="">区分未選択</option>
+                            {FP_AFFILIATION_OPTIONS.map((v) => (
+                              <option key={v} value={v}>
+                                {v}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => saveEdit(c.id)}
+                            disabled={savingEdit}
+                            className="btn btn-primary btn-sm"
+                          >
+                            {savingEdit ? "保存中..." : "保存"}
+                          </button>
+                          <button onClick={cancelEdit} className="btn btn-outline btn-sm">
+                            キャンセル
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={c.id}>
+                      <td>{c.name}</td>
+                      <td className="text-muted">{c.email}</td>
+                      <td className="text-muted" style={{ fontSize: 12 }}>
+                        {[
+                          c.age !== null ? `${c.age}歳` : null,
+                          c.fp_affiliation,
+                          c.fp_license,
+                          c.fp_experience,
+                        ]
+                          .filter(Boolean)
+                          .join(" / ") || "-"}{" "}
+                        <button
+                          onClick={() => startEdit(c)}
+                          className="btn btn-outline btn-sm"
+                          style={{ marginLeft: 6 }}
+                        >
+                          編集
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => copyLink(c.id, c.invite_token)}
+                          className="btn btn-outline btn-sm"
+                        >
+                          {copiedId === c.id ? "コピーしました" : "リンクをコピー"}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                )}
               </tbody>
             </table>
             {candidates.length === 0 && (
