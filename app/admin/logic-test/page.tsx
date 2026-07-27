@@ -107,12 +107,11 @@ export default function LogicTestAdminPage() {
 
   async function copyLink(token: string) {
     const link = inviteLink(token);
-    const text = `【ロジカルシンキング適性テスト】\n${link}`;
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(link);
       alert("リンクをコピーしました。");
     } catch {
-      prompt("以下のリンクをコピーしてください", text);
+      prompt("以下のリンクをコピーしてください", link);
     }
   }
 

@@ -324,25 +324,23 @@ export default function AdminDashboardPage() {
 
   async function copyLink(id: string, token: string) {
     const link = origin + "/exam/" + token;
-    const text = `【金融リテラシーチェックテスト】\n${link}`;
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(link);
       setCopiedId(id);
       setTimeout(() => setCopiedId((cur) => (cur === id ? null : cur)), 2000);
     } catch {
-      prompt("このリンクをコピーしてください:", text);
+      prompt("このリンクをコピーしてください:", link);
     }
   }
 
   async function copyLogicLink(id: string, token: string) {
     const link = origin + "/logic-exam/" + token;
-    const text = `【ロジカルシンキング適性テスト】\n${link}`;
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(link);
       setCopiedLogicId(id);
       setTimeout(() => setCopiedLogicId((cur) => (cur === id ? null : cur)), 2000);
     } catch {
-      prompt("このリンクをコピーしてください:", text);
+      prompt("このリンクをコピーしてください:", link);
     }
   }
 
@@ -360,7 +358,11 @@ export default function AdminDashboardPage() {
       alert(body.error || "発行に失敗しました。");
       return;
     }
+    const body = (await res.json()) as { logicInviteToken?: string };
     await load();
+    if (body.logicInviteToken) {
+      await copyLogicLink(candidateId, body.logicInviteToken);
+    }
   }
 
   if (loading) {
@@ -607,7 +609,11 @@ export default function AdminDashboardPage() {
                                 disabled={issuingLogicId === c.id}
                                 className="btn btn-outline btn-sm"
                               >
-                                {issuingLogicId === c.id ? "発行中..." : "招待を発行"}
+                                {issuingLogicId === c.id
+                                  ? "発行中..."
+                                  : copiedLogicId === c.id
+                                  ? "コピーしました"
+                                  : "招待を発行してコピー"}
                               </button>
                             );
                           }
