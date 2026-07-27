@@ -184,12 +184,20 @@ export default function LogicExamPage() {
               )}
 
               {q.type === "text" && (
-                <textarea
-                  rows={6}
-                  value={answers[q.id] ?? ""}
-                  onChange={(e) => setAnswer(q.id, e.target.value)}
-                  placeholder="ここに回答を入力してください"
-                />
+                <div>
+                  <textarea
+                    rows={6}
+                    value={answers[q.id] ?? ""}
+                    onChange={(e) => setAnswer(q.id, e.target.value)}
+                    placeholder="ここに回答を入力してください"
+                  />
+                  <div
+                    className="text-muted"
+                    style={{ fontSize: 12, textAlign: "right", marginTop: 4 }}
+                  >
+                    {(answers[q.id] ?? "").length}文字
+                  </div>
+                </div>
               )}
             </div>
           </div>

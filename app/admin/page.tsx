@@ -248,6 +248,14 @@ export default function AdminDashboardPage() {
     window.location.href = "/admin/compare?ids=" + selectedIds.join(",");
   }
 
+  function logicCandidateFor(mainCandidateId: string) {
+    return logicCandidates.find((lc) => lc.main_candidate_id === mainCandidateId);
+  }
+
+  function logicSessionFor(logicCandidateId: string) {
+    return logicSessions.find((ls) => ls.candidate_id === logicCandidateId);
+  }
+
   function buildInviteListText(): string {
     const blocks: string[] = [];
     for (const id of selectedIds) {
@@ -255,8 +263,14 @@ export default function AdminDashboardPage() {
       if (!s || !s.candidates) continue;
       const cand = candidates.find((c) => c.email === s.candidates!.email);
       if (!cand) continue;
-      const link = origin + "/exam/" + cand.invite_token;
-      blocks.push(`${cand.name} <${cand.email}>\n${link}`);
+      const mainLink = origin + "/exam/" + cand.invite_token;
+      let block = `${cand.name} <${cand.email}>\n【金融リテラシーチェックテスト】\n${mainLink}`;
+      const lc = logicCandidateFor(cand.id);
+      if (lc) {
+        const logicLink = origin + "/logic-exam/" + lc.invite_token;
+        block += `\n【ロジカルシンキング適性テスト】\n${logicLink}`;
+      }
+      blocks.push(block);
     }
     return blocks.join("\n\n");
   }
@@ -310,31 +324,25 @@ export default function AdminDashboardPage() {
 
   async function copyLink(id: string, token: string) {
     const link = origin + "/exam/" + token;
+    const text = `【金融リテラシーチェックテスト】\n${link}`;
     try {
-      await navigator.clipboard.writeText(link);
+      await navigator.clipboard.writeText(text);
       setCopiedId(id);
       setTimeout(() => setCopiedId((cur) => (cur === id ? null : cur)), 2000);
     } catch {
-      prompt("このリンクをコピーしてください:", link);
+      prompt("このリンクをコピーしてください:", text);
     }
-  }
-
-  function logicCandidateFor(mainCandidateId: string) {
-    return logicCandidates.find((lc) => lc.main_candidate_id === mainCandidateId);
-  }
-
-  function logicSessionFor(logicCandidateId: string) {
-    return logicSessions.find((ls) => ls.candidate_id === logicCandidateId);
   }
 
   async function copyLogicLink(id: string, token: string) {
     const link = origin + "/logic-exam/" + token;
+    const text = `【ロジカルシンキング適性テスト】\n${link}`;
     try {
-      await navigator.clipboard.writeText(link);
+      await navigator.clipboard.writeText(text);
       setCopiedLogicId(id);
       setTimeout(() => setCopiedLogicId((cur) => (cur === id ? null : cur)), 2000);
     } catch {
-      prompt("このリンクをコピーしてください:", link);
+      prompt("このリンクをコピーしてください:", text);
     }
   }
 
@@ -705,7 +713,7 @@ export default function AdminDashboardPage() {
               <textarea
                 readOnly
                 value={buildInviteListText()}
-                rows={Math.max(4, selectedIds.length * 3)}
+                rows={Math.max(4, selectedIds.length * 5)}
                 style={{
                   width: "100%",
                   fontFamily: "monospace",

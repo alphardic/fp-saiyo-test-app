@@ -107,11 +107,12 @@ export default function LogicTestAdminPage() {
 
   async function copyLink(token: string) {
     const link = inviteLink(token);
+    const text = `【ロジカルシンキング適性テスト】\n${link}`;
     try {
-      await navigator.clipboard.writeText(link);
+      await navigator.clipboard.writeText(text);
       alert("リンクをコピーしました。");
     } catch {
-      prompt("以下のリンクをコピーしてください", link);
+      prompt("以下のリンクをコピーしてください", text);
     }
   }
 
@@ -124,10 +125,15 @@ export default function LogicTestAdminPage() {
         </p>
       </div>
 
+      <div className="alert alert-info">
+        通常は通常の管理画面(候補者登録)から両方のテストのリンクが同時に発行されます。
+        このページは、ロジカルテストのみを単独で受けてもらいたい場合や、既存候補者一覧の確認用です。
+      </div>
+
       <div className="section">
         <div className="section-title">
           <span className="dot" />
-          <h2>候補者登録</h2>
+          <h2>候補者登録(単独発行)</h2>
         </div>
         <div className="card">
           <div className="form-row">
