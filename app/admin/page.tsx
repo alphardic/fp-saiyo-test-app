@@ -96,6 +96,7 @@ export default function AdminDashboardPage() {
   const [issuingLogicId, setIssuingLogicId] = useState<string | null>(null);
   const [gradingId, setGradingId] = useState<string | null>(null);
   const [gradeError, setGradeError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showInviteList, setShowInviteList] = useState(false);
@@ -104,6 +105,8 @@ export default function AdminDashboardPage() {
   const [myRole, setMyRole] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
   const [editAge, setEditAge] = useState("");
   const [editFpExperience, setEditFpExperience] = useState("");
   const [editFpLicense, setEditFpLicense] = useState("");
@@ -288,6 +291,8 @@ export default function AdminDashboardPage() {
 
   function startEdit(c: CandidateRow) {
     setEditingId(c.id);
+    setEditName(c.name);
+    setEditEmail(c.email);
     setEditAge(c.age !== null ? String(c.age) : "");
     setEditFpExperience(c.fp_experience ?? "");
     setEditFpLicense(c.fp_license ?? "");
@@ -301,11 +306,17 @@ export default function AdminDashboardPage() {
   async function saveEdit(id: string) {
     const token = await getAccessToken();
     if (!token) return;
+    if (!editName.trim() || !editEmail.trim()) {
+      alert("氏名とメールアドレスは空にできません。");
+      return;
+    }
     setSavingEdit(true);
     const res = await fetch(`/api/admin/candidates/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
       body: JSON.stringify({
+        name: editName.trim(),
+        email: editEmail.trim(),
         age: editAge === "" ? null : Number(editAge),
         fpExperience: editFpExperience || null,
         fpLicense: editFpLicense || null,
@@ -319,6 +330,26 @@ export default function AdminDashboardPage() {
       return;
     }
     setEditingId(null);
+    await load();
+  }
+
+  async function deleteCandidate(c: CandidateRow) {
+    if (!confirm(`${c.name} さんを削除します。両テストの受験データもすべて削除され、元に戻せません。よろしいですか？`)) {
+      return;
+    }
+    const token = await getAccessToken();
+    if (!token) return;
+    setDeletingId(c.id);
+    const res = await fetch(`/api/admin/candidates/${c.id}`, {
+      method: "DELETE",
+      headers: { Authorization: "Bearer " + token },
+    });
+    setDeletingId(null);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error || "削除に失敗しました。");
+      return;
+    }
     await load();
   }
 
@@ -512,8 +543,22 @@ export default function AdminDashboardPage() {
                 {candidates.map((c) =>
                   editingId === c.id ? (
                     <tr key={c.id}>
-                      <td>{c.name}</td>
-                      <td className="text-muted">{c.email}</td>
+                      <td>
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          style={{ width: 100 }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="email"
+                          value={editEmail}
+                          onChange={(e) => setEditEmail(e.target.value)}
+                          style={{ width: 160 }}
+                        />
+                      </td>
                       <td colSpan={3}>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                           <input
@@ -589,6 +634,14 @@ export default function AdminDashboardPage() {
                           style={{ marginLeft: 6 }}
                         >
                           編集
+                        </button>
+                        <button
+                          onClick={() => deleteCandidate(c)}
+                          disabled={deletingId === c.id}
+                          className="btn btn-outline btn-sm"
+                          style={{ marginLeft: 6 }}
+                        >
+                          {deletingId === c.id ? "削除中..." : "削除"}
                         </button>
                       </td>
                       <td>
