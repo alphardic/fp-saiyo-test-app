@@ -226,15 +226,23 @@ export default function AdminDashboardPage() {
     await load();
   }
 
-  function toggleSelect(sessionId: string) {
+  function sessionFor(candidateId: string) {
+    return sessions.find((s) => s.candidate_id === candidateId);
+  }
+
+  function toggleSelect(candidateId: string) {
     setSelectedIds((cur) =>
-      cur.includes(sessionId) ? cur.filter((x) => x !== sessionId) : [...cur, sessionId]
+      cur.includes(candidateId) ? cur.filter((x) => x !== candidateId) : [...cur, candidateId]
     );
     setShowInviteList(false);
   }
 
   function selectAllNotStarted() {
-    setSelectedIds(sessions.filter((s) => s.status === "not_started").map((s) => s.id));
+    setSelectedIds(
+      candidates
+        .filter((c) => (sessionFor(c.id)?.status ?? "not_started") === "not_started")
+        .map((c) => c.id)
+    );
     setShowInviteList(false);
   }
 
@@ -245,11 +253,14 @@ export default function AdminDashboardPage() {
 
   const canCompare =
     selectedIds.length >= 2 &&
-    selectedIds.every((id) => sessions.find((s) => s.id === id)?.status === "graded");
+    selectedIds.every((id) => sessionFor(id)?.status === "graded");
 
   function goToCompare() {
     if (!canCompare) return;
-    window.location.href = "/admin/compare?ids=" + selectedIds.join(",");
+    const sessionIds = selectedIds
+      .map((id) => sessionFor(id)?.id)
+      .filter((v): v is string => Boolean(v));
+    window.location.href = "/admin/compare?ids=" + sessionIds.join(",");
   }
 
   function logicCandidateFor(mainCandidateId: string) {
@@ -263,9 +274,7 @@ export default function AdminDashboardPage() {
   function buildInviteListText(): string {
     const blocks: string[] = [];
     for (const id of selectedIds) {
-      const s = sessions.find((x) => x.id === id);
-      if (!s || !s.candidates) continue;
-      const cand = candidates.find((c) => c.email === s.candidates!.email);
+      const cand = candidates.find((c) => c.id === id);
       if (!cand) continue;
       const mainLink = origin + "/exam/" + cand.invite_token;
       let block = `${cand.name} <${cand.email}>\n【金融リテラシーチェックテスト】\n${mainLink}`;
@@ -529,14 +538,97 @@ export default function AdminDashboardPage() {
             ※ 登録すると、金融リテラシーチェックテストとロジカルシンキング適性テスト、両方の招待リンクが同時に発行されます。
           </p>
           {addError && <div className="alert alert-error" style={{ marginTop: 12, marginBottom: 0 }}>{addError}</div>}
-          <div className="table-wrap" style={{ marginTop: 16, overflow: "visible" }}>
+        </div>
+      </div>
+
+      <div className="section" style={{ marginBottom: 0 }}>
+        <div className="section-title">
+          <span className="dot" />
+          <h2>候補者一覧</h2>
+        </div>
+        <div className="card">
+          {gradeError && <div className="alert alert-error">{gradeError}</div>}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 8,
+              marginBottom: 12,
+            }}
+          >
+            <span className="text-muted" style={{ fontSize: 13 }}>
+              候補者にチェックを入れると、比較(採点済み2名以上)や招待リンクの一括表示ができます。
+            </span>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={selectAllNotStarted} className="btn btn-outline btn-sm">
+                未受験の全員を選択
+              </button>
+              <button
+                onClick={clearSelection}
+                disabled={selectedIds.length === 0}
+                className="btn btn-outline btn-sm"
+              >
+                選択解除
+              </button>
+              <button
+                onClick={() => setShowInviteList(true)}
+                disabled={selectedIds.length === 0}
+                className="btn btn-outline btn-sm"
+              >
+                招待リンクを一覧表示
+              </button>
+              <button onClick={goToCompare} disabled={!canCompare} className="btn btn-primary btn-sm">
+                選択した{selectedIds.length}名を比較する
+              </button>
+            </div>
+          </div>
+
+          {showInviteList && (
+            <div
+              className="card"
+              style={{ background: "#f7f8fa", marginBottom: 16, padding: 16 }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 600 }}>
+                  招待リンク一覧({selectedIds.length}名)
+                </span>
+                <button onClick={copyInviteList} className="btn btn-outline btn-sm">
+                  {inviteCopied ? "コピーしました" : "全てコピー"}
+                </button>
+              </div>
+              <textarea
+                readOnly
+                value={buildInviteListText()}
+                rows={Math.max(4, selectedIds.length * 5)}
+                style={{
+                  width: "100%",
+                  fontFamily: "monospace",
+                  fontSize: 12,
+                  padding: 8,
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+          )}
+
+          <div className="table-wrap" style={{ overflow: "visible" }}>
             <table className="table">
               <thead>
                 <tr>
+                  <th></th>
                   <th>氏名</th>
                   <th>メール</th>
                   <th>属性</th>
-                  <th>受験リンク</th>
+                  <th>金融リテラシーテスト</th>
                   <th>ロジカルテスト</th>
                   <th></th>
                 </tr>
@@ -545,6 +637,13 @@ export default function AdminDashboardPage() {
                 {candidates.map((c) =>
                   editingId === c.id ? (
                     <tr key={c.id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(c.id)}
+                          onChange={() => toggleSelect(c.id)}
+                        />
+                      </td>
                       <td>
                         <input
                           type="text"
@@ -619,6 +718,13 @@ export default function AdminDashboardPage() {
                     </tr>
                   ) : (
                     <tr key={c.id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(c.id)}
+                          onChange={() => toggleSelect(c.id)}
+                        />
+                      </td>
                       <td>{c.name}</td>
                       <td className="text-muted">{c.email}</td>
                       <td className="text-muted" style={{ fontSize: 12 }}>
@@ -632,12 +738,37 @@ export default function AdminDashboardPage() {
                           .join(" / ") || "-"}
                       </td>
                       <td>
-                        <button
-                          onClick={() => copyLink(c.id, c.invite_token)}
-                          className="btn btn-outline btn-sm"
-                        >
-                          {copiedId === c.id ? "コピーしました" : "リンクをコピー"}
-                        </button>
+                        {(() => {
+                          const session = sessionFor(c.id);
+                          const status = session?.status ?? "not_started";
+                          return (
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+                              <StatusBadge status={status} />
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                <button
+                                  onClick={() => copyLink(c.id, c.invite_token)}
+                                  className="btn btn-outline btn-sm"
+                                >
+                                  {copiedId === c.id ? "コピーしました" : "リンクをコピー"}
+                                </button>
+                                {status === "submitted" && session && (
+                                  <button
+                                    onClick={() => gradeSession(session.id)}
+                                    disabled={gradingId === session.id}
+                                    className="btn btn-outline btn-sm"
+                                  >
+                                    {gradingId === session.id ? "採点中..." : "採点する"}
+                                  </button>
+                                )}
+                                {status === "graded" && session && (
+                                  <a href={"/admin/report/" + session.id} className="btn btn-gold btn-sm">
+                                    詳細
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td>
                         {(() => {
@@ -765,137 +896,5 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </div>
-
-      <div className="section" style={{ marginBottom: 0 }}>
-        <div className="section-title">
-          <span className="dot" />
-          <h2>受験状況一覧</h2>
-        </div>
-        <div className="card">
-          {gradeError && <div className="alert alert-error">{gradeError}</div>}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 8,
-              marginBottom: 12,
-            }}
-          >
-            <span className="text-muted" style={{ fontSize: 13 }}>
-              候補者にチェックを入れると、比較(採点済み2名以上)や招待リンクの一括表示ができます。
-            </span>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button onClick={selectAllNotStarted} className="btn btn-outline btn-sm">
-                未受験の全員を選択
-              </button>
-              <button
-                onClick={clearSelection}
-                disabled={selectedIds.length === 0}
-                className="btn btn-outline btn-sm"
-              >
-                選択解除
-              </button>
-              <button
-                onClick={() => setShowInviteList(true)}
-                disabled={selectedIds.length === 0}
-                className="btn btn-outline btn-sm"
-              >
-                招待リンクを一覧表示
-              </button>
-              <button onClick={goToCompare} disabled={!canCompare} className="btn btn-primary btn-sm">
-                選択した{selectedIds.length}名を比較する
-              </button>
-            </div>
-          </div>
-
-          {showInviteList && (
-            <div
-              className="card"
-              style={{ background: "#f7f8fa", marginBottom: 16, padding: 16 }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 8,
-                }}
-              >
-                <span style={{ fontSize: 13, fontWeight: 600 }}>
-                  招待リンク一覧({selectedIds.length}名)
-                </span>
-                <button onClick={copyInviteList} className="btn btn-outline btn-sm">
-                  {inviteCopied ? "コピーしました" : "全てコピー"}
-                </button>
-              </div>
-              <textarea
-                readOnly
-                value={buildInviteListText()}
-                rows={Math.max(4, selectedIds.length * 5)}
-                style={{
-                  width: "100%",
-                  fontFamily: "monospace",
-                  fontSize: 12,
-                  padding: 8,
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-          )}
-
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>候補者</th>
-                  <th>状態</th>
-                  <th>提出日時</th>
-                  <th>レポート</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map((s) => (
-                  <tr key={s.id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(s.id)}
-                        onChange={() => toggleSelect(s.id)}
-                      />
-                    </td>
-                    <td>{s.candidates?.name ?? "-"}</td>
-                    <td>
-                      <StatusBadge status={s.status} />
-                    </td>
-                    <td className="text-muted">{s.submitted_at ?? "-"}</td>
-                    <td>
-                      {s.status === "graded" ? (
-                        <a href={"/admin/report/" + s.id}>詳細を見る</a>
-                      ) : s.status === "submitted" ? (
-                        <button
-                          onClick={() => gradeSession(s.id)}
-                          disabled={gradingId === s.id}
-                          className="btn btn-outline btn-sm"
-                        >
-                          {gradingId === s.id ? "採点中..." : "採点する"}
-                        </button>
-                      ) : (
-                        <span className="text-muted">未受験</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {sessions.length === 0 && (
-              <div className="table-empty">まだ受験データがありません。</div>
-            )}
-          </div>
-        </div>
-      </div>
     </main>
   );
-}
