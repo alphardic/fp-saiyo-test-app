@@ -97,6 +97,7 @@ export default function AdminDashboardPage() {
   const [gradingId, setGradingId] = useState<string | null>(null);
   const [gradeError, setGradeError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showInviteList, setShowInviteList] = useState(false);
@@ -528,7 +529,7 @@ export default function AdminDashboardPage() {
             ※ 登録すると、金融リテラシーチェックテストとロジカルシンキング適性テスト、両方の招待リンクが同時に発行されます。
           </p>
           {addError && <div className="alert alert-error" style={{ marginTop: 12, marginBottom: 0 }}>{addError}</div>}
-          <div className="table-wrap" style={{ marginTop: 16 }}>
+          <div className="table-wrap" style={{ marginTop: 16, overflow: "visible" }}>
             <table className="table">
               <thead>
                 <tr>
@@ -537,6 +538,7 @@ export default function AdminDashboardPage() {
                   <th>属性</th>
                   <th>受験リンク</th>
                   <th>ロジカルテスト</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -559,7 +561,7 @@ export default function AdminDashboardPage() {
                           style={{ width: 160 }}
                         />
                       </td>
-                      <td colSpan={3}>
+                      <td colSpan={4}>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                           <input
                             type="number"
@@ -627,22 +629,7 @@ export default function AdminDashboardPage() {
                           c.fp_experience,
                         ]
                           .filter(Boolean)
-                          .join(" / ") || "-"}{" "}
-                        <button
-                          onClick={() => startEdit(c)}
-                          className="btn btn-outline btn-sm"
-                          style={{ marginLeft: 6 }}
-                        >
-                          編集
-                        </button>
-                        <button
-                          onClick={() => deleteCandidate(c)}
-                          disabled={deletingId === c.id}
-                          className="btn btn-outline btn-sm"
-                          style={{ marginLeft: 6 }}
-                        >
-                          {deletingId === c.id ? "削除中..." : "削除"}
-                        </button>
+                          .join(" / ") || "-"}
                       </td>
                       <td>
                         <button
@@ -673,25 +660,99 @@ export default function AdminDashboardPage() {
                           const ls = logicSessionFor(lc.id);
                           const status = ls?.status ?? "not_started";
                           return (
-                            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
                               <LogicStatusBadge status={status} />
-                              <button
-                                onClick={() => copyLogicLink(c.id, lc.invite_token)}
-                                className="btn btn-outline btn-sm"
-                              >
-                                {copiedLogicId === c.id ? "コピーしました" : "リンクをコピー"}
-                              </button>
-                              {status === "completed" && ls && (
-                                <a
-                                  href={"/admin/logic-test/report/" + ls.id}
-                                  className="btn btn-gold btn-sm"
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                <button
+                                  onClick={() => copyLogicLink(c.id, lc.invite_token)}
+                                  className="btn btn-outline btn-sm"
                                 >
-                                  レポート
-                                </a>
-                              )}
+                                  {copiedLogicId === c.id ? "コピーしました" : "リンクをコピー"}
+                                </button>
+                                {status === "completed" && ls && (
+                                  <a
+                                    href={"/admin/logic-test/report/" + ls.id}
+                                    className="btn btn-gold btn-sm"
+                                  >
+                                    レポート
+                                  </a>
+                                )}
+                              </div>
                             </div>
                           );
                         })()}
+                      </td>
+                      <td style={{ position: "relative", textAlign: "right" }}>
+                        <button
+                          onClick={() => setOpenMenuId((cur) => (cur === c.id ? null : c.id))}
+                          className="btn btn-outline btn-sm"
+                          style={{ padding: "4px 10px", fontSize: 16, lineHeight: 1 }}
+                          aria-label="操作メニュー"
+                        >
+                          ⋮
+                        </button>
+                        {openMenuId === c.id && (
+                          <>
+                            <div
+                              onClick={() => setOpenMenuId(null)}
+                              style={{ position: "fixed", inset: 0, zIndex: 20 }}
+                            />
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: "100%",
+                                right: 0,
+                                marginTop: 4,
+                                background: "#fff",
+                                border: "1px solid var(--color-border)",
+                                borderRadius: "var(--radius-md)",
+                                boxShadow: "var(--shadow-md)",
+                                minWidth: 120,
+                                overflow: "hidden",
+                                zIndex: 21,
+                              }}
+                            >
+                              <button
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  startEdit(c);
+                                }}
+                                style={{
+                                  display: "block",
+                                  width: "100%",
+                                  textAlign: "left",
+                                  padding: "10px 14px",
+                                  border: "none",
+                                  background: "none",
+                                  cursor: "pointer",
+                                  fontSize: 13,
+                                }}
+                              >
+                                編集
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  deleteCandidate(c);
+                                }}
+                                disabled={deletingId === c.id}
+                                style={{
+                                  display: "block",
+                                  width: "100%",
+                                  textAlign: "left",
+                                  padding: "10px 14px",
+                                  border: "none",
+                                  background: "none",
+                                  cursor: "pointer",
+                                  fontSize: 13,
+                                  color: "var(--color-error)",
+                                }}
+                              >
+                                {deletingId === c.id ? "削除中..." : "削除"}
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </td>
                     </tr>
                   )
