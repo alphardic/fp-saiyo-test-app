@@ -39,33 +39,38 @@ const FP_EXPERIENCE_OPTIONS = ["未経験", "経験者"];
 const FP_LICENSE_OPTIONS = ["なし", "3級", "2級", "1級", "AFP", "CFP"];
 const FP_AFFILIATION_OPTIONS = ["非FP", "他社FP", "当社FP"];
 
-const STATUS_LABEL: Record<string, string> = {
+const MAIN_STATUS_DOT: Record<string, string> = {
+  not_started: "⚪",
+  in_progress: "🟡",
+  submitted: "🟠",
+  graded: "🟢",
+};
+const MAIN_STATUS_TEXT: Record<string, string> = {
   not_started: "未受験",
   in_progress: "受験中",
   submitted: "採点待ち",
-  graded: "採点済み",
+  graded: "採点済",
 };
 
-function StatusBadge({ status }: { status: string }) {
-  const label = STATUS_LABEL[status] ?? status;
-  let cls = "badge badge-muted";
-  if (status === "in_progress" || status === "submitted") cls = "badge badge-progress";
-  if (status === "graded") cls = "badge badge-done";
-  return <span className={cls}>{label}</span>;
-}
-
-const LOGIC_STATUS_LABEL: Record<string, string> = {
+const LOGIC_STATUS_DOT: Record<string, string> = {
+  not_issued: "⚫",
+  not_started: "⚪",
+  in_progress: "🟡",
+  completed: "🟢",
+};
+const LOGIC_STATUS_TEXT: Record<string, string> = {
+  not_issued: "未発行",
   not_started: "未受験",
   in_progress: "受験中",
   completed: "完了",
 };
 
-function LogicStatusBadge({ status }: { status: string }) {
-  const label = LOGIC_STATUS_LABEL[status] ?? status;
-  let cls = "badge badge-muted";
-  if (status === "in_progress") cls = "badge badge-progress";
-  if (status === "completed") cls = "badge badge-done";
-  return <span className={cls}>{label}</span>;
+function CompactStatus({ dot, text }: { dot: string; text: string }) {
+  return (
+    <span style={{ fontSize: 13, whiteSpace: "nowrap" }}>
+      {dot} {text}
+    </span>
+  );
 }
 
 /**
@@ -98,6 +103,7 @@ export default function AdminDashboardPage() {
   const [gradeError, setGradeError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showInviteList, setShowInviteList] = useState(false);
@@ -406,6 +412,10 @@ export default function AdminDashboardPage() {
     }
   }
 
+  function toggleExpand(id: string) {
+    setExpandedId((cur) => (cur === id ? null : id));
+  }
+
   if (loading) {
     return (
       <main className="page">
@@ -546,212 +556,306 @@ export default function AdminDashboardPage() {
           <span className="dot" />
           <h2>候補者一覧</h2>
         </div>
-        <div className="card">
-          {gradeError && <div className="alert alert-error">{gradeError}</div>}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 8,
-              marginBottom: 12,
-            }}
-          >
-            <span className="text-muted" style={{ fontSize: 13 }}>
-              候補者にチェックを入れると、比較(採点済み2名以上)や招待リンクの一括表示ができます。
-            </span>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button onClick={selectAllNotStarted} className="btn btn-outline btn-sm">
-                未受験の全員を選択
-              </button>
-              <button
-                onClick={clearSelection}
-                disabled={selectedIds.length === 0}
-                className="btn btn-outline btn-sm"
-              >
-                選択解除
-              </button>
-              <button
-                onClick={() => setShowInviteList(true)}
-                disabled={selectedIds.length === 0}
-                className="btn btn-outline btn-sm"
-              >
-                招待リンクを一覧表示
-              </button>
-              <button onClick={goToCompare} disabled={!canCompare} className="btn btn-primary btn-sm">
-                選択した{selectedIds.length}名を比較する
-              </button>
-            </div>
-          </div>
-
-          {showInviteList && (
+        <div className="card" style={{ padding: 0 }}>
+          <div style={{ padding: "20px 20px 12px" }}>
+            {gradeError && <div className="alert alert-error">{gradeError}</div>}
             <div
-              className="card"
-              style={{ background: "#f7f8fa", marginBottom: 16, padding: 16 }}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 8,
+              }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 8,
-                }}
-              >
-                <span style={{ fontSize: 13, fontWeight: 600 }}>
-                  招待リンク一覧({selectedIds.length}名)
-                </span>
-                <button onClick={copyInviteList} className="btn btn-outline btn-sm">
-                  {inviteCopied ? "コピーしました" : "全てコピー"}
+              <span className="text-muted" style={{ fontSize: 12 }}>
+                🟢採点済/完了　🟡受験中　🟠採点待ち　⚪未受験　⚫未発行
+              </span>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={selectAllNotStarted} className="btn btn-outline btn-sm">
+                  未受験を選択
+                </button>
+                <button
+                  onClick={clearSelection}
+                  disabled={selectedIds.length === 0}
+                  className="btn btn-outline btn-sm"
+                >
+                  選択解除
+                </button>
+                <button
+                  onClick={() => setShowInviteList(true)}
+                  disabled={selectedIds.length === 0}
+                  className="btn btn-outline btn-sm"
+                >
+                  招待リンク一覧
+                </button>
+                <button onClick={goToCompare} disabled={!canCompare} className="btn btn-primary btn-sm">
+                  比較する({selectedIds.length})
                 </button>
               </div>
-              <textarea
-                readOnly
-                value={buildInviteListText()}
-                rows={Math.max(4, selectedIds.length * 5)}
-                style={{
-                  width: "100%",
-                  fontFamily: "monospace",
-                  fontSize: 12,
-                  padding: 8,
-                  boxSizing: "border-box",
-                }}
-              />
             </div>
-          )}
 
-          <div className="table-wrap" style={{ overflow: "visible" }}>
+            {showInviteList && (
+              <div
+                className="card"
+                style={{ background: "#f7f8fa", marginTop: 12, marginBottom: 0, padding: 16 }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 8,
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>
+                    招待リンク一覧({selectedIds.length}名)
+                  </span>
+                  <button onClick={copyInviteList} className="btn btn-outline btn-sm">
+                    {inviteCopied ? "コピーしました" : "全てコピー"}
+                  </button>
+                </div>
+                <textarea
+                  readOnly
+                  value={buildInviteListText()}
+                  rows={Math.max(4, selectedIds.length * 5)}
+                  style={{
+                    width: "100%",
+                    fontFamily: "monospace",
+                    fontSize: 12,
+                    padding: 8,
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="table-wrap" style={{ overflow: "visible", border: "none", borderRadius: 0 }}>
             <table className="table">
               <thead>
                 <tr>
-                  <th></th>
-                  <th>氏名</th>
-                  <th>メール</th>
-                  <th>属性</th>
-                  <th>金融リテラシーテスト</th>
-                  <th>ロジカルテスト</th>
-                  <th></th>
+                  <th style={{ padding: "8px 12px" }}></th>
+                  <th style={{ padding: "8px 12px" }}>氏名</th>
+                  <th style={{ padding: "8px 12px" }}>属性</th>
+                  <th style={{ padding: "8px 12px" }}>金融リテラシー</th>
+                  <th style={{ padding: "8px 12px" }}>ロジカル</th>
+                  <th style={{ padding: "8px 12px" }}></th>
                 </tr>
               </thead>
               <tbody>
-                {candidates.map((c) =>
-                  editingId === c.id ? (
-                    <tr key={c.id}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(c.id)}
-                          onChange={() => toggleSelect(c.id)}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          style={{ width: 100 }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="email"
-                          value={editEmail}
-                          onChange={(e) => setEditEmail(e.target.value)}
-                          style={{ width: 160 }}
-                        />
-                      </td>
-                      <td colSpan={4}>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                {candidates.map((c) => {
+                  if (editingId === c.id) {
+                    return (
+                      <tr key={c.id}>
+                        <td style={{ padding: "8px 12px" }}>
                           <input
-                            type="number"
-                            min={0}
-                            placeholder="年齢"
-                            value={editAge}
-                            onChange={(e) => setEditAge(e.target.value)}
-                            style={{ width: 70 }}
+                            type="checkbox"
+                            checked={selectedIds.includes(c.id)}
+                            onChange={() => toggleSelect(c.id)}
                           />
-                          <select
-                            value={editFpExperience}
-                            onChange={(e) => setEditFpExperience(e.target.value)}
-                          >
-                            <option value="">実務経験未選択</option>
-                            {FP_EXPERIENCE_OPTIONS.map((v) => (
-                              <option key={v} value={v}>
-                                {v}
-                              </option>
-                            ))}
-                          </select>
-                          <select
-                            value={editFpLicense}
-                            onChange={(e) => setEditFpLicense(e.target.value)}
-                          >
-                            <option value="">資格未選択</option>
-                            {FP_LICENSE_OPTIONS.map((v) => (
-                              <option key={v} value={v}>
-                                {v}
-                              </option>
-                            ))}
-                          </select>
-                          <select
-                            value={editFpAffiliation}
-                            onChange={(e) => setEditFpAffiliation(e.target.value)}
-                          >
-                            <option value="">区分未選択</option>
-                            {FP_AFFILIATION_OPTIONS.map((v) => (
-                              <option key={v} value={v}>
-                                {v}
-                              </option>
-                            ))}
-                          </select>
+                        </td>
+                        <td style={{ padding: "8px 12px" }}>
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            style={{ width: 100 }}
+                          />
+                        </td>
+                        <td colSpan={4} style={{ padding: "8px 12px" }}>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                            <input
+                              type="email"
+                              value={editEmail}
+                              onChange={(e) => setEditEmail(e.target.value)}
+                              style={{ width: 160 }}
+                            />
+                            <input
+                              type="number"
+                              min={0}
+                              placeholder="年齢"
+                              value={editAge}
+                              onChange={(e) => setEditAge(e.target.value)}
+                              style={{ width: 70 }}
+                            />
+                            <select
+                              value={editFpExperience}
+                              onChange={(e) => setEditFpExperience(e.target.value)}
+                            >
+                              <option value="">実務経験未選択</option>
+                              {FP_EXPERIENCE_OPTIONS.map((v) => (
+                                <option key={v} value={v}>
+                                  {v}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              value={editFpLicense}
+                              onChange={(e) => setEditFpLicense(e.target.value)}
+                            >
+                              <option value="">資格未選択</option>
+                              {FP_LICENSE_OPTIONS.map((v) => (
+                                <option key={v} value={v}>
+                                  {v}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              value={editFpAffiliation}
+                              onChange={(e) => setEditFpAffiliation(e.target.value)}
+                            >
+                              <option value="">区分未選択</option>
+                              {FP_AFFILIATION_OPTIONS.map((v) => (
+                                <option key={v} value={v}>
+                                  {v}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => saveEdit(c.id)}
+                              disabled={savingEdit}
+                              className="btn btn-primary btn-sm"
+                            >
+                              {savingEdit ? "保存中..." : "保存"}
+                            </button>
+                            <button onClick={cancelEdit} className="btn btn-outline btn-sm">
+                              キャンセル
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  const session = sessionFor(c.id);
+                  const mainStatus = session?.status ?? "not_started";
+                  const lc = logicCandidateFor(c.id);
+                  const ls = lc ? logicSessionFor(lc.id) : null;
+                  const logicStatus = !lc ? "not_issued" : ls?.status ?? "not_started";
+                  const attrText =
+                    [c.age !== null ? `${c.age}歳` : null, c.fp_affiliation, c.fp_experience]
+                      .filter(Boolean)
+                      .join("・") || "-";
+
+                  return (
+                    <>
+                      <tr key={c.id} style={{ height: 52 }}>
+                        <td style={{ padding: "8px 12px" }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(c.id)}
+                            onChange={() => toggleSelect(c.id)}
+                          />
+                        </td>
+                        <td style={{ padding: "8px 12px", fontWeight: 500 }}>{c.name}</td>
+                        <td className="text-muted" style={{ padding: "8px 12px", fontSize: 12 }}>
+                          {attrText}
+                        </td>
+                        <td style={{ padding: "8px 12px" }}>
+                          <CompactStatus dot={MAIN_STATUS_DOT[mainStatus]} text={MAIN_STATUS_TEXT[mainStatus]} />
+                        </td>
+                        <td style={{ padding: "8px 12px" }}>
+                          <CompactStatus dot={LOGIC_STATUS_DOT[logicStatus]} text={LOGIC_STATUS_TEXT[logicStatus]} />
+                        </td>
+                        <td style={{ padding: "8px 12px", position: "relative", textAlign: "right", whiteSpace: "nowrap" }}>
                           <button
-                            onClick={() => saveEdit(c.id)}
-                            disabled={savingEdit}
-                            className="btn btn-primary btn-sm"
+                            onClick={() => toggleExpand(c.id)}
+                            className="btn btn-outline btn-sm"
                           >
-                            {savingEdit ? "保存中..." : "保存"}
+                            {expandedId === c.id ? "閉じる" : "詳細"}
                           </button>
-                          <button onClick={cancelEdit} className="btn btn-outline btn-sm">
-                            キャンセル
+                          <button
+                            onClick={() => setOpenMenuId((cur) => (cur === c.id ? null : c.id))}
+                            className="btn btn-outline btn-sm"
+                            style={{ marginLeft: 4, padding: "4px 10px", fontSize: 16, lineHeight: 1 }}
+                            aria-label="操作メニュー"
+                          >
+                            ⋮
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr key={c.id}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(c.id)}
-                          onChange={() => toggleSelect(c.id)}
-                        />
-                      </td>
-                      <td>{c.name}</td>
-                      <td className="text-muted">{c.email}</td>
-                      <td className="text-muted" style={{ fontSize: 12 }}>
-                        {[
-                          c.age !== null ? `${c.age}歳` : null,
-                          c.fp_affiliation,
-                          c.fp_license,
-                          c.fp_experience,
-                        ]
-                          .filter(Boolean)
-                          .join(" / ") || "-"}
-                      </td>
-                      <td>
-                        {(() => {
-                          const session = sessionFor(c.id);
-                          const status = session?.status ?? "not_started";
-                          return (
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
-                              <StatusBadge status={status} />
-                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {openMenuId === c.id && (
+                            <>
+                              <div
+                                onClick={() => setOpenMenuId(null)}
+                                style={{ position: "fixed", inset: 0, zIndex: 20 }}
+                              />
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  top: "100%",
+                                  right: 12,
+                                  marginTop: 4,
+                                  background: "#fff",
+                                  border: "1px solid var(--color-border)",
+                                  borderRadius: "var(--radius-md)",
+                                  boxShadow: "var(--shadow-md)",
+                                  minWidth: 120,
+                                  overflow: "hidden",
+                                  zIndex: 21,
+                                }}
+                              >
+                                <button
+                                  onClick={() => {
+                                    setOpenMenuId(null);
+                                    startEdit(c);
+                                  }}
+                                  style={{
+                                    display: "block",
+                                    width: "100%",
+                                    textAlign: "left",
+                                    padding: "10px 14px",
+                                    border: "none",
+                                    background: "none",
+                                    cursor: "pointer",
+                                    fontSize: 13,
+                                  }}
+                                >
+                                  編集
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setOpenMenuId(null);
+                                    deleteCandidate(c);
+                                  }}
+                                  disabled={deletingId === c.id}
+                                  style={{
+                                    display: "block",
+                                    width: "100%",
+                                    textAlign: "left",
+                                    padding: "10px 14px",
+                                    border: "none",
+                                    background: "none",
+                                    cursor: "pointer",
+                                    fontSize: 13,
+                                    color: "var(--color-error)",
+                                  }}
+                                >
+                                  {deletingId === c.id ? "削除中..." : "削除"}
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                      {expandedId === c.id && (
+                        <tr key={c.id + "-detail"}>
+                          <td colSpan={6} style={{ background: "#f8fafc", padding: "16px 24px" }}>
+                            <div style={{ fontSize: 13, color: "var(--color-text-muted)", marginBottom: 12 }}>
+                              {c.email}
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, minWidth: 140 }}>
+                                  金融リテラシーテスト
+                                </span>
+                                <CompactStatus dot={MAIN_STATUS_DOT[mainStatus]} text={MAIN_STATUS_TEXT[mainStatus]} />
                                 <button
                                   onClick={() => copyLink(c.id, c.invite_token)}
                                   className="btn btn-outline btn-sm"
                                 >
                                   {copiedId === c.id ? "コピーしました" : "リンクをコピー"}
                                 </button>
-                                {status === "submitted" && session && (
+                                {mainStatus === "submitted" && session && (
                                   <button
                                     onClick={() => gradeSession(session.id)}
                                     disabled={gradingId === session.id}
@@ -760,134 +864,55 @@ export default function AdminDashboardPage() {
                                     {gradingId === session.id ? "採点中..." : "採点する"}
                                   </button>
                                 )}
-                                {status === "graded" && session && (
+                                {mainStatus === "graded" && session && (
                                   <a href={"/admin/report/" + session.id} className="btn btn-gold btn-sm">
-                                    詳細
+                                    レポートを見る
                                   </a>
                                 )}
                               </div>
-                            </div>
-                          );
-                        })()}
-                      </td>
-                      <td>
-                        {(() => {
-                          const lc = logicCandidateFor(c.id);
-                          if (!lc) {
-                            return (
-                              <button
-                                onClick={() => issueLogicInvite(c.id)}
-                                disabled={issuingLogicId === c.id}
-                                className="btn btn-outline btn-sm"
-                              >
-                                {issuingLogicId === c.id
-                                  ? "発行中..."
-                                  : copiedLogicId === c.id
-                                  ? "コピーしました"
-                                  : "招待を発行してコピー"}
-                              </button>
-                            );
-                          }
-                          const ls = logicSessionFor(lc.id);
-                          const status = ls?.status ?? "not_started";
-                          return (
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
-                              <LogicStatusBadge status={status} />
-                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                <button
-                                  onClick={() => copyLogicLink(c.id, lc.invite_token)}
-                                  className="btn btn-outline btn-sm"
-                                >
-                                  {copiedLogicId === c.id ? "コピーしました" : "リンクをコピー"}
-                                </button>
-                                {status === "completed" && ls && (
-                                  <a
-                                    href={"/admin/logic-test/report/" + ls.id}
-                                    className="btn btn-gold btn-sm"
+                              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, minWidth: 140 }}>
+                                  ロジカルシンキング適性テスト
+                                </span>
+                                <CompactStatus dot={LOGIC_STATUS_DOT[logicStatus]} text={LOGIC_STATUS_TEXT[logicStatus]} />
+                                {!lc ? (
+                                  <button
+                                    onClick={() => issueLogicInvite(c.id)}
+                                    disabled={issuingLogicId === c.id}
+                                    className="btn btn-outline btn-sm"
                                   >
-                                    レポート
-                                  </a>
+                                    {issuingLogicId === c.id
+                                      ? "発行中..."
+                                      : copiedLogicId === c.id
+                                      ? "コピーしました"
+                                      : "招待を発行してコピー"}
+                                  </button>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => copyLogicLink(c.id, lc.invite_token)}
+                                      className="btn btn-outline btn-sm"
+                                    >
+                                      {copiedLogicId === c.id ? "コピーしました" : "リンクをコピー"}
+                                    </button>
+                                    {logicStatus === "completed" && ls && (
+                                      <a
+                                        href={"/admin/logic-test/report/" + ls.id}
+                                        className="btn btn-gold btn-sm"
+                                      >
+                                        レポートを見る
+                                      </a>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             </div>
-                          );
-                        })()}
-                      </td>
-                      <td style={{ position: "relative", textAlign: "right" }}>
-                        <button
-                          onClick={() => setOpenMenuId((cur) => (cur === c.id ? null : c.id))}
-                          className="btn btn-outline btn-sm"
-                          style={{ padding: "4px 10px", fontSize: 16, lineHeight: 1 }}
-                          aria-label="操作メニュー"
-                        >
-                          ⋮
-                        </button>
-                        {openMenuId === c.id && (
-                          <>
-                            <div
-                              onClick={() => setOpenMenuId(null)}
-                              style={{ position: "fixed", inset: 0, zIndex: 20 }}
-                            />
-                            <div
-                              style={{
-                                position: "absolute",
-                                top: "100%",
-                                right: 0,
-                                marginTop: 4,
-                                background: "#fff",
-                                border: "1px solid var(--color-border)",
-                                borderRadius: "var(--radius-md)",
-                                boxShadow: "var(--shadow-md)",
-                                minWidth: 120,
-                                overflow: "hidden",
-                                zIndex: 21,
-                              }}
-                            >
-                              <button
-                                onClick={() => {
-                                  setOpenMenuId(null);
-                                  startEdit(c);
-                                }}
-                                style={{
-                                  display: "block",
-                                  width: "100%",
-                                  textAlign: "left",
-                                  padding: "10px 14px",
-                                  border: "none",
-                                  background: "none",
-                                  cursor: "pointer",
-                                  fontSize: 13,
-                                }}
-                              >
-                                編集
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setOpenMenuId(null);
-                                  deleteCandidate(c);
-                                }}
-                                disabled={deletingId === c.id}
-                                style={{
-                                  display: "block",
-                                  width: "100%",
-                                  textAlign: "left",
-                                  padding: "10px 14px",
-                                  border: "none",
-                                  background: "none",
-                                  cursor: "pointer",
-                                  fontSize: 13,
-                                  color: "var(--color-error)",
-                                }}
-                              >
-                                {deletingId === c.id ? "削除中..." : "削除"}
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                )}
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
               </tbody>
             </table>
             {candidates.length === 0 && (
@@ -896,6 +921,6 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </div>
-  </main>
+    </main>
   );
 }
