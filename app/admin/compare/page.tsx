@@ -42,7 +42,6 @@ function RadarChart({ candidates }: { candidates: CandidateResult[] }) {
   const center = size / 2;
   const maxRadius = size / 2 - 70;
   const axisCount = FIELDS.length;
-
   function pointFor(index: number, value: number) {
     const angle = (Math.PI * 2 * index) / axisCount - Math.PI / 2;
     const r = (value / 100) * maxRadius;
@@ -51,7 +50,6 @@ function RadarChart({ candidates }: { candidates: CandidateResult[] }) {
       y: center + r * Math.sin(angle),
     };
   }
-
   function labelPointFor(index: number) {
     const angle = (Math.PI * 2 * index) / axisCount - Math.PI / 2;
     const r = maxRadius + 34;
@@ -60,9 +58,7 @@ function RadarChart({ candidates }: { candidates: CandidateResult[] }) {
       y: center + r * Math.sin(angle),
     };
   }
-
   const gridLevels = [25, 50, 75, 100];
-
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       {gridLevels.map((level) => {
@@ -78,7 +74,6 @@ function RadarChart({ candidates }: { candidates: CandidateResult[] }) {
           />
         );
       })}
-
       {FIELDS.map((_, i) => {
         const p = pointFor(i, 100);
         return (
@@ -93,7 +88,6 @@ function RadarChart({ candidates }: { candidates: CandidateResult[] }) {
           />
         );
       })}
-
       {FIELDS.map((field, i) => {
         const p = labelPointFor(i);
         return (
@@ -110,7 +104,6 @@ function RadarChart({ candidates }: { candidates: CandidateResult[] }) {
           </text>
         );
       })}
-
       {candidates.map((c, ci) => {
         const pts = FIELDS.map((field, i) => pointFor(i, c.fieldScores[field] ?? 0));
         const path = pts.map((p) => `${p.x},${p.y}`).join(" ");
@@ -128,23 +121,265 @@ function RadarChart({ candidates }: { candidates: CandidateResult[] }) {
   );
 }
 
-function ComparePageInner() {
-  const searchParams = useSearchParams();
-  const ids = (searchParams.get("ids") ?? "").split(",").filter(Boolean);
+const LOGIC_FIELDS = ["論理的思考力", "ヒヤリング力", "自己洗脳力"];
 
-  const [data, setData] = useState<CompareData | null>(null);
+interface LogicCandidateResult {
+  sessionId: string;
+  name: string;
+  email: string;
+  fieldScores: Record<string, number>;
+  overallScore: number;
+}
+
+interface LogicCompareData {
+  candidates: LogicCandidateResult[];
+  comparisonSummary: string | null;
+}
+
+function scoreColorLogic(score: number) {
+  if (score >= 70) return "var(--color-success)";
+  if (score >= 40) return "var(--color-warning)";
+  return "var(--color-error)";
+}
+
+function LogicRadarSvg({ candidates }: { candidates: LogicCandidateResult[] }) {
+  const size = 320;
+  const center = size / 2;
+  const maxRadius = size / 2 - 60;
+  const axisCount = LOGIC_FIELDS.length;
+  function pointFor(index: number, value: number) {
+    const angle = (Math.PI * 2 * index) / axisCount - Math.PI / 2;
+    const r = (value / 100) * maxRadius;
+    return { x: center + r * Math.cos(angle), y: center + r * Math.sin(angle) };
+  }
+  function labelPointFor(index: number) {
+    const angle = (Math.PI * 2 * index) / axisCount - Math.PI / 2;
+    const r = maxRadius + 30;
+    return { x: center + r * Math.cos(angle), y: center + r * Math.sin(angle) };
+  }
+  const gridLevels = [25, 50, 75, 100];
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      {gridLevels.map((level) => {
+        const pts = LOGIC_FIELDS.map((_, i) => pointFor(i, level));
+        const path = pts.map((p) => `${p.x},${p.y}`).join(" ");
+        return (
+          <polygon key={level} points={path} fill="none" stroke="var(--color-border)" strokeWidth={1} />
+        );
+      })}
+      {LOGIC_FIELDS.map((_, i) => {
+        const p = pointFor(i, 100);
+        return (
+          <line key={i} x1={center} y1={center} x2={p.x} y2={p.y} stroke="var(--color-border)" strokeWidth={1} />
+        );
+      })}
+      {LOGIC_FIELDS.map((field, i) => {
+        const p = labelPointFor(i);
+        return (
+          <text key={field} x={p.x} y={p.y} fontSize={11} fill="var(--color-text-muted)" textAnchor="middle" dominantBaseline="middle">
+            {field}
+          </text>
+        );
+      })}
+      {candidates.map((c, ci) => {
+        const pts = LOGIC_FIELDS.map((field, i) => pointFor(i, c.fieldScores[field] ?? 0));
+        const path = pts.map((p) => `${p.x},${p.y}`).join(" ");
+        const color = COLORS[ci % COLORS.length];
+        return (
+          <g key={c.sessionId}>
+            <polygon points={path} fill={color} fillOpacity={0.12} stroke={color} strokeWidth={2} />
+            {pts.map((p, i) => (
+              <circle key={i} cx={p.x} cy={p.y} r={3} fill={color} />
+            ))}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function LogicRadarBlock({ candidateIds }: { candidateIds: string[] }) {
+  const [data, setData] = useState<LogicCompareData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      if (candidateIds.length < 2) {
+        setLoading(false);
+        return;
+      }
+      const { data: sessionData } = await supabaseBrowser.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+      const res = await fetch(`/api/logic-admin/compare?ids=${encodeURIComponent(candidateIds.join(","))}`, {
+        headers: { Authorization: "Bearer " + token },
+      });
+      if (res.ok) {
+        setData(await res.json());
+      }
+      setLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (loading || !data || data.candidates.length < 2) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <LogicRadarSvg candidates={data.candidates} />
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 12 }}>
+        {data.candidates.map((c, i) => (
+          <div key={c.sessionId} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+            <span
+              style={{
+                display: "inline-block",
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                background: COLORS[i % COLORS.length],
+              }}
+            />
+            {c.name}(ロジカル総合{c.overallScore}点)
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LogicCompareSection({ candidateIds }: { candidateIds: string[] }) {
+  const [data, setData] = useState<LogicCompareData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    load();
+    (async () => {
+      setLoading(true);
+      setError(null);
+      if (candidateIds.length < 2) {
+        setLoading(false);
+        return;
+      }
+      const { data: sessionData } = await supabaseBrowser.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+      const res = await fetch(`/api/logic-admin/compare?ids=${encodeURIComponent(candidateIds.join(","))}`, {
+        headers: { Authorization: "Bearer " + token },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.error || "ロジカルテストの比較データの取得に失敗しました。");
+        setLoading(false);
+        return;
+      }
+      setData(await res.json());
+      setLoading(false);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  if (loading) return null;
+
+  if (error || !data || data.candidates.length < 2) {
+    return (
+      <div className="section">
+        <div className="section-title">
+          <span className="dot" />
+          <h2>ロジカルシンキング適性テストの比較</h2>
+        </div>
+        <div className="card">
+          <p className="text-muted" style={{ marginBottom: 0 }}>
+            {error ?? "比較対象者全員がロジカルテストを完了していないため、表示できません。"}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="section">
+        <div className="section-title">
+          <span className="dot" />
+          <h2>ロジカルシンキング適性テストの傾向分析</h2>
+        </div>
+        <div className="card">
+          {data.comparisonSummary ? (
+            <p style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}>{data.comparisonSummary}</p>
+          ) : (
+            <p className="text-muted" style={{ marginBottom: 0 }}>
+              分析コメントの生成に失敗しました。表・グラフは通常どおりご覧いただけます。
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="section">
+        <div className="section-title">
+          <span className="dot" />
+          <h2>分野別スコア(表・ロジカルテスト)</h2>
+        </div>
+        <div className="card">
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>分野</th>
+                  {data.candidates.map((c) => (
+                    <th key={c.sessionId}>{c.name}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {LOGIC_FIELDS.map((field) => (
+                  <tr key={field}>
+                    <td className="text-muted">{field}</td>
+                    {data.candidates.map((c) => {
+                      const score = c.fieldScores[field] ?? 0;
+                      return (
+                        <td key={c.sessionId} style={{ fontWeight: 600, color: scoreColorLogic(score) }}>
+                          {score}点
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+                <tr>
+                  <td style={{ fontWeight: 700 }}>総合(単純平均)</td>
+                  {data.candidates.map((c) => (
+                    <td key={c.sessionId} style={{ fontWeight: 700 }}>
+                      {c.overallScore}点
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ComparePageInner() {
+  const searchParams = useSearchParams();
+  const ids = (searchParams.get("ids") ?? "").split(",").filter(Boolean);
+  const candidateIds = (searchParams.get("candidateIds") ?? "").split(",").filter(Boolean);
+  const [data, setData] = useState<CompareData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   async function load() {
     setLoading(true);
     setError(null);
-
     const { data: sessionData } = await supabaseBrowser.auth.getSession();
     const token = sessionData.session?.access_token;
     if (!token) {
@@ -152,23 +387,19 @@ function ComparePageInner() {
       setLoading(false);
       return;
     }
-
     const res = await fetch(`/api/admin/compare?ids=${encodeURIComponent(ids.join(","))}`, {
       headers: { Authorization: "Bearer " + token },
     });
-
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       setError(body.error || "比較データの取得に失敗しました。");
       setLoading(false);
       return;
     }
-
     const body = (await res.json()) as CompareData;
     setData(body);
     setLoading(false);
   }
-
   if (loading) {
     return (
       <main className="page">
@@ -176,7 +407,6 @@ function ComparePageInner() {
       </main>
     );
   }
-
   if (error || !data) {
     return (
       <main className="page page-narrow">
@@ -191,7 +421,6 @@ function ComparePageInner() {
       </main>
     );
   }
-
   return (
     <main className="page page-wide">
       <div className="page-header">
@@ -201,7 +430,6 @@ function ComparePageInner() {
         <h1 style={{ marginTop: 8 }}>候補者比較</h1>
         <p>{data.candidates.map((c) => c.name).join(" / ")}</p>
       </div>
-
       <div className="section">
         <div className="section-title">
           <span className="dot" />
@@ -217,14 +445,14 @@ function ComparePageInner() {
           )}
         </div>
       </div>
-
       <div className="section">
         <div className="section-title">
           <span className="dot" />
           <h2>分野別スコア(レーダーチャート)</h2>
         </div>
-        <div className="card" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div className="card" style={{ display: "flex", flexWrap: "wrap", gap: 32, alignItems: "flex-start", justifyContent: "center" }}>
           <RadarChart candidates={data.candidates} />
+          <LogicRadarBlock candidateIds={candidateIds} />
           <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 12 }}>
             {data.candidates.map((c, i) => (
               <div key={c.sessionId} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
@@ -243,7 +471,6 @@ function ComparePageInner() {
           </div>
         </div>
       </div>
-
       <div className="section" style={{ marginBottom: 0 }}>
         <div className="section-title">
           <span className="dot" />
@@ -287,10 +514,10 @@ function ComparePageInner() {
           </div>
         </div>
       </div>
+      <LogicCompareSection candidateIds={candidateIds} />
     </main>
   );
 }
-
 export default function ComparePage() {
   return (
     <Suspense

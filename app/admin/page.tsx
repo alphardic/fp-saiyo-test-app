@@ -62,7 +62,7 @@ const LOGIC_STATUS_TEXT: Record<string, string> = {
   not_issued: "未発行",
   not_started: "未受験",
   in_progress: "受験中",
-  completed: "完了",
+  completed: "採点済",
 };
 
 function CompactStatus({ dot, text }: { dot: string; text: string }) {
@@ -266,7 +266,8 @@ export default function AdminDashboardPage() {
     const sessionIds = selectedIds
       .map((id) => sessionFor(id)?.id)
       .filter((v): v is string => Boolean(v));
-    window.location.href = "/admin/compare?ids=" + sessionIds.join(",");
+    window.location.href =
+      "/admin/compare?ids=" + sessionIds.join(",") + "&candidateIds=" + selectedIds.join(",");
   }
 
   function logicCandidateFor(mainCandidateId: string) {
@@ -569,7 +570,7 @@ export default function AdminDashboardPage() {
               }}
             >
               <span className="text-muted" style={{ fontSize: 12 }}>
-                🟢採点済/完了　🟡受験中　🟠採点待ち　⚪未受験　⚫未発行
+                🟢採点済　🟡受験中　🟠採点待ち　⚪未受験　⚫未発行
               </span>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button onClick={selectAllNotStarted} className="btn btn-outline btn-sm">
