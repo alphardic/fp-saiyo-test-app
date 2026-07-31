@@ -451,24 +451,26 @@ function ComparePageInner() {
           <h2>分野別スコア(レーダーチャート)</h2>
         </div>
         <div className="card" style={{ display: "flex", flexWrap: "wrap", gap: 32, alignItems: "flex-start", justifyContent: "center" }}>
-          <RadarChart candidates={data.candidates} />
-          <LogicRadarBlock candidateIds={candidateIds} />
-          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 12 }}>
-            {data.candidates.map((c, i) => (
-              <div key={c.sessionId} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
-                <span
-                  style={{
-                    display: "inline-block",
-                    width: 10,
-                    height: 10,
-                    borderRadius: "50%",
-                    background: COLORS[i % COLORS.length],
-                  }}
-                />
-                {c.name}(総合{c.overallScore}点)
-              </div>
-            ))}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <RadarChart candidates={data.candidates} />
+            <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 12 }}>
+              {data.candidates.map((c, i) => (
+                <div key={c.sessionId} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      background: COLORS[i % COLORS.length],
+                    }}
+                  />
+                  {c.name}(総合{c.overallScore}点)
+                </div>
+              ))}
+            </div>
           </div>
+          <LogicRadarBlock candidateIds={candidateIds} />
         </div>
       </div>
       <div className="section" style={{ marginBottom: 0 }}>
