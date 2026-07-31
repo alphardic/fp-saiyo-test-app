@@ -228,7 +228,7 @@ function LogicRadarBlock({ candidateIds }: { candidateIds: string[] }) {
   if (loading || !data || data.candidates.length < 2) return null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
       <LogicRadarSvg candidates={data.candidates} />
       <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 12 }}>
         {data.candidates.map((c, i) => (
@@ -450,8 +450,8 @@ function ComparePageInner() {
           <span className="dot" />
           <h2>分野別スコア(レーダーチャート)</h2>
         </div>
-        <div className="card" style={{ display: "flex", flexWrap: "wrap", gap: 32, alignItems: "flex-start", justifyContent: "center" }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div className="card" style={{ display: "flex", flexWrap: "nowrap", gap: 32, alignItems: "flex-start", justifyContent: "center", overflowX: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
             <RadarChart candidates={data.candidates} />
             <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 12 }}>
               {data.candidates.map((c, i) => (
