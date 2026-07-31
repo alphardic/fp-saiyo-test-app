@@ -27,6 +27,7 @@ interface LogicCandidateRow {
   id: string;
   main_candidate_id: string | null;
   invite_token: string;
+  mbti: string | null;
 }
 
 interface LogicSessionRow {
@@ -758,6 +759,11 @@ export default function AdminDashboardPage() {
                         </td>
                         <td style={{ padding: "8px 12px" }}>
                           <CompactStatus dot={LOGIC_STATUS_DOT[logicStatus]} text={LOGIC_STATUS_TEXT[logicStatus]} />
+                          {lc?.mbti && (
+                            <span className="text-muted" style={{ fontSize: 11, marginLeft: 6 }}>
+                              {lc.mbti}
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: "8px 12px", position: "relative", textAlign: "right", whiteSpace: "nowrap" }}>
                           <button

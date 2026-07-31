@@ -29,6 +29,25 @@ const SECTION_LABEL: Record<string, string> = {
   C: "セクションC: 自己洗脳力ライティング課題",
 };
 
+const MBTI_TYPES = [
+  "INTJ",
+  "INTP",
+  "ENTJ",
+  "ENTP",
+  "INFJ",
+  "INFP",
+  "ENFJ",
+  "ENFP",
+  "ISTJ",
+  "ISFJ",
+  "ESTJ",
+  "ESFJ",
+  "ISTP",
+  "ISFP",
+  "ESTP",
+  "ESFP",
+];
+
 export default function LogicExamPage() {
   const params = useParams<{ token: string }>();
   const token = params.token;
@@ -36,6 +55,7 @@ export default function LogicExamPage() {
   const [candidateName, setCandidateName] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [mbti, setMbti] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -74,6 +94,11 @@ export default function LogicExamPage() {
   }
 
   async function handleSubmit() {
+    if (!mbti) {
+      setError("MBTIタイプを選択してください。");
+      return;
+    }
+
     const unanswered = questions.filter((q) => !answers[q.id]?.trim());
     if (unanswered.length > 0) {
       if (!confirm(`未回答の設問が${unanswered.length}件あります。このまま提出しますか？`)) {
@@ -85,6 +110,7 @@ export default function LogicExamPage() {
     setError(null);
 
     const payload = {
+      mbti,
       answers: questions.map((q) => ({
         questionId: q.id,
         choiceAnswer: q.type === "choice" ? answers[q.id] : undefined,
@@ -147,6 +173,20 @@ export default function LogicExamPage() {
 
       <div className="alert alert-info">
         全ての設問にご回答のうえ、ページ下部の「提出する」ボタンを押してください。記述式の設問は文章でご記入ください。
+      </div>
+
+      <div className="card">
+        <div className="field">
+          <label htmlFor="mbti-select">あなたのMBTIタイプを選択してください</label>
+          <select id="mbti-select" value={mbti} onChange={(e) => setMbti(e.target.value)}>
+            <option value="">選択してください</option>
+            {MBTI_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {questions.map((q) => {

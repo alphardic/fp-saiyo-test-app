@@ -38,8 +38,18 @@ export async function POST(
     return NextResponse.json({ error: "このテストは既に提出済みです。" }, { status: 400 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { answers?: SubmitAnswer[] };
+  const body = (await req.json().catch(() => ({}))) as {
+    answers?: SubmitAnswer[];
+    mbti?: string;
+  };
   const answers = body.answers ?? [];
+
+  if (body.mbti) {
+    await supabase
+      .from("logic_candidates")
+      .update({ mbti: body.mbti })
+      .eq("id", candidate.id);
+  }
 
   const { data: questions, error: questionsError } = await supabase
     .from("logic_questions")

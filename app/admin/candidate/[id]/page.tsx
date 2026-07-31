@@ -62,6 +62,7 @@ export default function CombinedCandidateReportPage() {
   const [logicStatus, setLogicStatus] = useState("not_issued");
   const [logicSessionId, setLogicSessionId] = useState<string | null>(null);
   const [logicReport, setLogicReport] = useState<LogicReportSummary | null>(null);
+  const [logicMbti, setLogicMbti] = useState<string | null>(null);
 
   useEffect(() => {
     if (candidateId) load();
@@ -115,6 +116,7 @@ export default function CombinedCandidateReportPage() {
       );
       lStatus = ls?.status ?? "not_started";
       if (ls) lSessionId = ls.id;
+      setLogicMbti(logicCandidate.mbti ?? null);
     }
     setLogicStatus(lStatus);
     setLogicSessionId(lSessionId);
@@ -224,6 +226,12 @@ export default function CombinedCandidateReportPage() {
             </p>
           ) : logicReport ? (
             <>
+              {logicMbti && (
+                <p style={{ fontSize: 13, marginBottom: 16 }}>
+                  <span className="text-muted">MBTI: </span>
+                  <span style={{ fontWeight: 600 }}>{logicMbti}</span>
+                </p>
+              )}
               {logicReport.overall_summary && (
                 <p style={{ whiteSpace: "pre-wrap", marginBottom: 20 }}>
                   {logicReport.overall_summary}

@@ -33,15 +33,19 @@ export async function GET(req: NextRequest) {
 
   const candidateIds = (candidates ?? []).map((c) => c.id);
 
-  let logicCandidates: { id: string; main_candidate_id: string | null; invite_token: string }[] = [];
+  let logicCandidates: {
+    id: string;
+    main_candidate_id: string | null;
+    invite_token: string;
+    mbti: string | null;
+  }[] = [];
   let logicSessions: { id: string; candidate_id: string; status: string }[] = [];
 
   if (candidateIds.length > 0) {
     const { data: logicCandidatesData } = await supabase
       .from("logic_candidates")
-      .select("id, main_candidate_id, invite_token")
+      .select("id, main_candidate_id, invite_token, mbti")
       .in("main_candidate_id", candidateIds);
-
     logicCandidates = logicCandidatesData ?? [];
 
     const logicCandidateIds = logicCandidates.map((c) => c.id);
