@@ -30,22 +30,22 @@ const SECTION_LABEL: Record<string, string> = {
 };
 
 const MBTI_TYPES = [
-  "INTJ",
-  "INTP",
-  "ENTJ",
-  "ENTP",
-  "INFJ",
-  "INFP",
-  "ENFJ",
-  "ENFP",
-  "ISTJ",
-  "ISFJ",
-  "ESTJ",
-  "ESFJ",
-  "ISTP",
-  "ISFP",
-  "ESTP",
-  "ESFP",
+  { code: "INTJ", name: "建築家" },
+  { code: "INTP", name: "論理学者" },
+  { code: "ENTJ", name: "指揮官" },
+  { code: "ENTP", name: "討論者" },
+  { code: "INFJ", name: "提唱者" },
+  { code: "INFP", name: "仲介者" },
+  { code: "ENFJ", name: "主人公" },
+  { code: "ENFP", name: "広報運動家" },
+  { code: "ISTJ", name: "管理者" },
+  { code: "ISFJ", name: "擁護者" },
+  { code: "ESTJ", name: "幹部" },
+  { code: "ESFJ", name: "領事官" },
+  { code: "ISTP", name: "巨匠" },
+  { code: "ISFP", name: "冒険家" },
+  { code: "ESTP", name: "起業家" },
+  { code: "ESFP", name: "エンターテイナー" },
 ];
 
 export default function LogicExamPage() {
@@ -181,11 +181,22 @@ export default function LogicExamPage() {
           <select id="mbti-select" value={mbti} onChange={(e) => setMbti(e.target.value)}>
             <option value="">選択してください</option>
             {MBTI_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
+              <option key={t.code} value={t.code}>
+                {t.code}({t.name})
               </option>
             ))}
           </select>
+          <p className="text-muted" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
+            ご自身のMBTIタイプが分からない場合は、
+            <a
+              href="https://www.16personalities.com/ja"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              こちらの無料診断
+            </a>
+            を受験して回答をしてください。
+          </p>
         </div>
       </div>
 
