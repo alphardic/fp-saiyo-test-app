@@ -46,9 +46,10 @@ export async function POST(req: NextRequest) {
       fp_experience: body.fpExperience || null,
       fp_license: body.fpLicense || null,
       fp_affiliation: body.fpAffiliation || null,
+      invited_by: authResult.email,
     })
     .select(
-      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation"
+      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation, invited_by"
     )
     .single();
 
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
         email,
         invite_token: crypto.randomUUID(),
         main_candidate_id: data.id,
+        invited_by: authResult.email,
       })
       .select("id, invite_token")
       .single();

@@ -21,6 +21,7 @@ interface CandidateRow {
   fp_experience: string | null;
   fp_license: string | null;
   fp_affiliation: string | null;
+  invited_by: string | null;
 }
 
 interface LogicCandidateRow {
@@ -28,6 +29,8 @@ interface LogicCandidateRow {
   main_candidate_id: string | null;
   invite_token: string;
   mbti: string | null;
+  created_at: string;
+  invited_by: string | null;
 }
 
 interface LogicSessionRow {
@@ -72,6 +75,19 @@ function CompactStatus({ dot, text }: { dot: string; text: string }) {
       {dot} {text}
     </span>
   );
+}
+
+function formatDateTime(iso: string | null | undefined) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleString("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 /**
@@ -861,6 +877,18 @@ export default function AdminDashboardPage() {
                               <a href={"/admin/candidate/" + c.id} className="btn btn-gold btn-sm">
                                 総合レポートを見る
                               </a>
+                            </div>
+                            <div
+                              className="text-muted"
+                              style={{ fontSize: 12, marginBottom: 12 }}
+                            >
+                              金融リテラシー招待: {c.invited_by ?? "不明"} が {formatDateTime(c.created_at)} に発行
+                              {lc && (
+                                <>
+                                  {" ・ "}
+                                  ロジカル招待: {lc.invited_by ?? "不明"} が {formatDateTime(lc.created_at)} に発行
+                                </>
+                              )}
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>

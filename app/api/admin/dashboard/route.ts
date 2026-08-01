@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const { data: candidates, error: candidateError } = await supabase
     .from("candidates")
     .select(
-      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation"
+      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation, invited_by"
     )
     .order("created_at", { ascending: false });
 
@@ -38,13 +38,15 @@ export async function GET(req: NextRequest) {
     main_candidate_id: string | null;
     invite_token: string;
     mbti: string | null;
+    created_at: string;
+    invited_by: string | null;
   }[] = [];
   let logicSessions: { id: string; candidate_id: string; status: string }[] = [];
 
   if (candidateIds.length > 0) {
     const { data: logicCandidatesData } = await supabase
       .from("logic_candidates")
-      .select("id, main_candidate_id, invite_token, mbti")
+      .select("id, main_candidate_id, invite_token, mbti, created_at, invited_by")
       .in("main_candidate_id", candidateIds);
     logicCandidates = logicCandidatesData ?? [];
 

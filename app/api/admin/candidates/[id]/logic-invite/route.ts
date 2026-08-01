@@ -42,6 +42,7 @@ export async function POST(
       email: candidate.email,
       invite_token: crypto.randomUUID(),
       main_candidate_id: candidate.id,
+      invited_by: authResult.email,
     })
     .select("id, invite_token")
     .single();
