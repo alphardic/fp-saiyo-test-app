@@ -100,6 +100,14 @@ export default function EmployeesPage() {
       setAddError("氏名を入力してください。");
       return;
     }
+    if (!mbti) {
+      setAddError("MBTIを選択してください(総合レポートの相性診断に必要です)。");
+      return;
+    }
+    if (!birthdate) {
+      setAddError("生年月日を入力してください(占いの計算に必要です)。");
+      return;
+    }
     const token = await getAccessToken();
     if (!token) {
       setAddError("ログインが必要です。");
@@ -152,6 +160,14 @@ export default function EmployeesPage() {
     if (!token) return;
     if (!editName.trim()) {
       alert("氏名を入力してください。");
+      return;
+    }
+    if (!editMbti) {
+      alert("MBTIを選択してください(総合レポートの相性診断に必要です)。");
+      return;
+    }
+    if (!editBirthdate) {
+      alert("生年月日を入力してください(占いの計算に必要です)。");
       return;
     }
     setSavingEdit(true);
@@ -268,7 +284,7 @@ export default function EmployeesPage() {
           </div>
           <div className="form-row" style={{ marginBottom: 16 }}>
             <div className="field">
-              <label htmlFor="emp-birthdate">生年月日(占い計算に使用)</label>
+              <label htmlFor="emp-birthdate">生年月日(必須・占いの計算に使用)</label>
               <input
                 id="emp-birthdate"
                 type="date"
@@ -277,7 +293,7 @@ export default function EmployeesPage() {
               />
             </div>
             <div className="field">
-              <label htmlFor="emp-mbti">MBTI(任意)</label>
+              <label htmlFor="emp-mbti">MBTI(必須)</label>
               <select id="emp-mbti" value={mbti} onChange={(e) => setMbti(e.target.value)}>
                 <option value="">未選択</option>
                 {MBTI_TYPES.map((t) => (

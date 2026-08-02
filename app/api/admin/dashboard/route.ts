@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const { data: candidates, error: candidateError } = await supabase
     .from("candidates")
     .select(
-      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation, invited_by"
+      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation, invited_by, birthdate"
     )
     .order("created_at", { ascending: false });
 

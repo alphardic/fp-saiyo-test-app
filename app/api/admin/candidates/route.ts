@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
     fpExperience?: string | null;
     fpLicense?: string | null;
     fpAffiliation?: string | null;
+    birthdate?: string | null;
   };
 
   const name = body.name?.trim();

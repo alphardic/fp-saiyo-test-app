@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 
 /**
  * PATCH /api/admin/candidates/[id]
- * 既存候補者の氏名・メールアドレス・属性(年齢・FP実務経験・FP資格・区分)を更新する。
+ * 既存候補者の氏名・メールアドレス・属性(年齢・FP実務経験・FP資格・区分・生年月日)を更新する。
  */
 export async function PATCH(
   req: NextRequest,
@@ -20,6 +20,7 @@ export async function PATCH(
     fpExperience?: string | null;
     fpLicense?: string | null;
     fpAffiliation?: string | null;
+    birthdate?: string | null;
   };
 
   const ageNumber =
@@ -34,6 +35,7 @@ export async function PATCH(
     fp_experience: body.fpExperience || null,
     fp_license: body.fpLicense || null,
     fp_affiliation: body.fpAffiliation || null,
+    birthdate: body.birthdate || null,
   };
 
   const trimmedName = body.name?.trim();
@@ -46,7 +48,7 @@ export async function PATCH(
     .update(updatePayload)
     .eq("id", params.id)
     .select(
-      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation"
+      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation, birthdate"
     )
     .single();
 

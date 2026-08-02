@@ -22,6 +22,7 @@ interface CandidateRow {
   fp_license: string | null;
   fp_affiliation: string | null;
   invited_by: string | null;
+  birthdate: string | null;
 }
 
 interface LogicCandidateRow {
@@ -109,6 +110,7 @@ export default function AdminDashboardPage() {
   const [fpExperience, setFpExperience] = useState("");
   const [fpLicense, setFpLicense] = useState("");
   const [fpAffiliation, setFpAffiliation] = useState("");
+  const [birthdate, setBirthdate] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -135,6 +137,7 @@ export default function AdminDashboardPage() {
   const [editFpExperience, setEditFpExperience] = useState("");
   const [editFpLicense, setEditFpLicense] = useState("");
   const [editFpAffiliation, setEditFpAffiliation] = useState("");
+  const [editBirthdate, setEditBirthdate] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
@@ -211,6 +214,7 @@ export default function AdminDashboardPage() {
         fpExperience: fpExperience || null,
         fpLicense: fpLicense || null,
         fpAffiliation: fpAffiliation || null,
+        birthdate: birthdate || null,
       }),
     });
     setAdding(false);
@@ -225,6 +229,7 @@ export default function AdminDashboardPage() {
     setFpExperience("");
     setFpLicense("");
     setFpAffiliation("");
+    setBirthdate("");
     await load();
   }
 
@@ -331,6 +336,7 @@ export default function AdminDashboardPage() {
     setEditFpExperience(c.fp_experience ?? "");
     setEditFpLicense(c.fp_license ?? "");
     setEditFpAffiliation(c.fp_affiliation ?? "");
+    setEditBirthdate(c.birthdate ?? "");
   }
 
   function cancelEdit() {
@@ -355,6 +361,7 @@ export default function AdminDashboardPage() {
         fpExperience: editFpExperience || null,
         fpLicense: editFpLicense || null,
         fpAffiliation: editFpAffiliation || null,
+        birthdate: editBirthdate || null,
       }),
     });
     setSavingEdit(false);
@@ -563,6 +570,15 @@ export default function AdminDashboardPage() {
                 ))}
               </select>
             </div>
+            <div className="field">
+              <label htmlFor="cand-birthdate">生年月日(任意・占いの計算に使用)</label>
+              <input
+                id="cand-birthdate"
+                type="date"
+                value={birthdate}
+                onChange={(e) => setBirthdate(e.target.value)}
+              />
+            </div>
             <button onClick={handleAddCandidate} disabled={adding} className="btn btn-primary">
               {adding ? "登録中..." : "候補者を追加"}
             </button>
@@ -735,6 +751,11 @@ export default function AdminDashboardPage() {
                                 </option>
                               ))}
                             </select>
+                            <input
+                              type="date"
+                              value={editBirthdate}
+                              onChange={(e) => setEditBirthdate(e.target.value)}
+                            />
                             <button
                               onClick={() => saveEdit(c.id)}
                               disabled={savingEdit}
