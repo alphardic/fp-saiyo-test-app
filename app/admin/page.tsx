@@ -465,11 +465,16 @@ export default function AdminDashboardPage() {
             <h1>管理ダッシュボード</h1>
             <p>候補者の招待と受験状況を管理します。</p>
           </div>
-          {myRole === "super_admin" && (
-            <a href="/admin/admins" className="btn btn-outline btn-sm">
-              管理者管理
+          <div style={{ display: "flex", gap: 8 }}>
+            <a href="/admin/employees" className="btn btn-outline btn-sm">
+              社員管理
             </a>
-          )}
+            {myRole === "super_admin" && (
+              <a href="/admin/admins" className="btn btn-outline btn-sm">
+                管理者管理
+              </a>
+            )}
+          </div>
         </div>
       </div>
 
