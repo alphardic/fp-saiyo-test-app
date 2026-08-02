@@ -218,3 +218,117 @@ ${table}
   const textBlock2 = data2.content?.find((c) => c.type === "text");
   return (textBlock2?.text ?? "").trim();
 }
+
+export interface CompatibilityEntry {
+  type: string;
+  reason: string;
+}
+
+export interface ComprehensiveReport {
+  mbtiPersonality: string;
+  fortunePersonality: string;
+  overallSummary: string;
+  howToHandle: string;
+  goodCompatibility: CompatibilityEntry[];
+  badCompatibility: CompatibilityEntry[];
+}
+
+/**
+ * MBTI・九星気学・六星占術・(あれば)本システムのテスト結果を統合し、
+ * 総合レポート(性格・今年の運勢・扱い方・相性)をAnthropic Claude APIで生成する。
+ * 社員(テスト結果なし)・候補者(テスト結果あり)の両方で使う。
+ */
+export async function generateComprehensiveReport(params: {
+  name: string;
+  mbti: string;
+  kyuseiStar: string;
+  rokuseiLabel: string;
+  rokuseiReigou: boolean;
+  currentYear: number;
+  testSummary?: string | null;
+}): Promise<ComprehensiveReport> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY が設定されていません。");
+  }
+
+  const testSection = params.testSummary
+    ? `# 本システムのテスト結果(総評)\n${params.testSummary}\n`
+    : "";
+
+  const prompt = `あなたはFP(ファイナンシャルプランナー)業界の人事・マネジメント向けに、
+社員・候補者の総合的な人物理解をサポートするレポートを作成するAIです。
+
+対象者: ${params.name}
+MBTIタイプ: ${params.mbti}
+九星気学: ${params.kyuseiStar}
+六星占術: ${params.rokuseiLabel}${params.rokuseiReigou ? "(霊合星人)" : ""}
+現在の年: ${params.currentYear}年
+${testSection}
+以下の観点で、日本語で簡潔にまとめてください。MBTIと占い(九星気学・六星占術)の
+一般的な傾向・特徴を根拠として使い、断定しすぎず「傾向がある」「〜しやすい」
+といったトーンで書いてください。相性については、実在する特定の人物と比較する
+のではなく、MBTIタイプや占いのタイプに基づく一般的な相性傾向として述べてください。
+
+- mbtiPersonality: MBTIタイプから見た基本性格(120字程度)
+- fortunePersonality: 占い(九星気学・六星占術)からわかる本人の性格・基本的な運勢の
+  傾向、および${params.currentYear}年の運勢の傾向(150字程度)
+- overallSummary: ${testSection ? "テスト結果も踏まえて、" : ""}MBTIと占いを総合して見た
+  「本人はどういう人か」(120字程度)
+- howToHandle: 上司・同僚としてこの人とどう接するとよいか、扱い方・マネジメント上の
+  ポイント(120字程度)
+- goodCompatibility: 相性がよいと考えられるタイプを2つ、それぞれ「type」(MBTIタイプ名や
+  性格特性の呼び方)と「reason」(50字程度の理由)で
+- badCompatibility: 相性が悪い、または注意が必要と考えられるタイプを2つ、同様の形式で
+
+以下のJSON形式のみを出力してください。それ以外のテキストは一切含めないでください。
+{
+  "mbtiPersonality": "...",
+  "fortunePersonality": "...",
+  "overallSummary": "...",
+  "howToHandle": "...",
+  "goodCompatibility": [{"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}],
+  "badCompatibility": [{"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}]
+}`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 1200,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`AI総合レポートAPIエラー(${res.status}): ${text.slice(0, 300)}`);
+  }
+
+  const data = (await res.json()) as {
+    content: { type: string; text?: string }[];
+  };
+  const textBlock = data.content?.find((c) => c.type === "text");
+  const raw = textBlock?.text ?? "";
+
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) {
+    throw new Error("AI総合レポート結果の解析に失敗しました: " + raw.slice(0, 200));
+  }
+
+  const parsed = JSON.parse(match[0]) as ComprehensiveReport;
+
+  return {
+    mbtiPersonality: parsed.mbtiPersonality ?? "",
+    fortunePersonality: parsed.fortunePersonality ?? "",
+    overallSummary: parsed.overallSummary ?? "",
+    howToHandle: parsed.howToHandle ?? "",
+    goodCompatibility: Array.isArray(parsed.goodCompatibility) ? parsed.goodCompatibility : [],
+    badCompatibility: Array.isArray(parsed.badCompatibility) ? parsed.badCompatibility : [],
+  };
+}
