@@ -195,6 +195,10 @@ export default function AdminDashboardPage() {
       setAddError("名前とメールアドレスを入力してください。");
       return;
     }
+    if (!birthdate) {
+      setAddError("生年月日を入力してください(占いの計算に使用します)。");
+      return;
+    }
     const token = await getAccessToken();
     if (!token) {
       setAddError("ログインが必要です。");
@@ -469,7 +473,7 @@ export default function AdminDashboardPage() {
       <div className="page-header">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            <h1>管理ダッシュボード</h1>
+            <h1>候補者管理</h1>
             <p>候補者の招待と受験状況を管理します。</p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -571,12 +575,13 @@ export default function AdminDashboardPage() {
               </select>
             </div>
             <div className="field">
-              <label htmlFor="cand-birthdate">生年月日(任意・占いの計算に使用)</label>
+              <label htmlFor="cand-birthdate">生年月日</label>
               <input
                 id="cand-birthdate"
                 type="date"
                 value={birthdate}
                 onChange={(e) => setBirthdate(e.target.value)}
+                required
               />
             </div>
             <button onClick={handleAddCandidate} disabled={adding} className="btn btn-primary">

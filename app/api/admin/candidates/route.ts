@@ -31,6 +31,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (!body.birthdate) {
+    return NextResponse.json(
+      { error: "生年月日を入力してください(占いの計算に使用します)。" },
+      { status: 400 }
+    );
+  }
+
   const ageNumber =
     body.age === "" || body.age === undefined || body.age === null
       ? null
