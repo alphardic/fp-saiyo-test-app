@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import { formatMbti } from "@/lib/mbti";
 
 interface Employee {
   id: string;
@@ -106,7 +107,7 @@ export default function EmployeeReportPage() {
             <h1 style={{ marginTop: 0 }}>{data.employee.name} さんの総合レポート</h1>
             <p className="text-muted" style={{ marginBottom: 0 }}>
               {data.employee.department ? `${data.employee.department} ・ ` : ""}
-              MBTI: {data.employee.mbti} ・ 九星気学: {data.kyuseiStar} ・ 六星占術:{" "}
+              MBTI: {formatMbti(data.employee.mbti)} ・ 九星気学: {data.kyuseiStar} ・ 六星占術:{" "}
               {data.rokusei.label}
               {data.rokusei.reigou ? "(霊合星人)" : ""}
             </p>

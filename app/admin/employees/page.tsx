@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import { formatMbti } from "@/lib/mbti";
 
 interface EmployeeRow {
   id: string;
@@ -407,7 +408,7 @@ export default function EmployeesPage() {
                       <td style={{ fontWeight: 500 }}>{e.name}</td>
                       <td className="text-muted">{e.department || "-"}</td>
                       <td className="text-muted">{formatDate(e.birthdate)}</td>
-                      <td className="text-muted">{e.mbti || "-"}</td>
+                      <td className="text-muted">{e.mbti ? formatMbti(e.mbti) : "-"}</td>
                       <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                         <a href={"/admin/employees/" + e.id} className="btn btn-gold btn-sm">
                           総合レポート

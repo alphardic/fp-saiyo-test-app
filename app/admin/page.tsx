@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import { formatMbti } from "@/lib/mbti";
 
 interface SessionRow {
   id: string;
@@ -808,7 +809,7 @@ export default function AdminDashboardPage() {
                           <CompactStatus dot={LOGIC_STATUS_DOT[logicStatus]} text={LOGIC_STATUS_TEXT[logicStatus]} />
                           {lc?.mbti && (
                             <span className="text-muted" style={{ fontSize: 11, marginLeft: 6 }}>
-                              {lc.mbti}
+                              {formatMbti(lc.mbti)}
                             </span>
                           )}
                         </td>

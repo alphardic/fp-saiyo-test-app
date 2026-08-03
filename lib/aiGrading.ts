@@ -1,3 +1,5 @@
+import { formatMbti, applyMbtiNicknamesToText } from "./mbti";
+
 const CLAUDE_MODEL = "claude-sonnet-5";
 
 export interface GradeResult {
@@ -256,30 +258,41 @@ export async function generateComprehensiveReport(params: {
     ? `# 本システムのテスト結果(総評)\n${params.testSummary}\n`
     : "";
 
+  const mbtiWithNickname = formatMbti(params.mbti);
+
   const prompt = `あなたはFP(ファイナンシャルプランナー)業界の人事・マネジメント向けに、
-社員・候補者の総合的な人物理解をサポートするレポートを作成するAIです。
+社員・候補者の総合的な人物理解をサポートする、詳細なレポートを作成するAIです。
 
 対象者: ${params.name}
-MBTIタイプ: ${params.mbti}
+MBTIタイプ: ${mbtiWithNickname}
 九星気学: ${params.kyuseiStar}
 六星占術: ${params.rokuseiLabel}${params.rokuseiReigou ? "(霊合星人)" : ""}
 現在の年: ${params.currentYear}年
 ${testSection}
-以下の観点で、日本語で簡潔にまとめてください。MBTIと占い(九星気学・六星占術)の
+以下の観点で、日本語で詳しく具体的にまとめてください。MBTIと占い(九星気学・六星占術)の
 一般的な傾向・特徴を根拠として使い、断定しすぎず「傾向がある」「〜しやすい」
 といったトーンで書いてください。相性については、実在する特定の人物と比較する
 のではなく、MBTIタイプや占いのタイプに基づく一般的な相性傾向として述べてください。
+MBTIタイプに言及する際は、必ず「ENTJ(指揮官)」のようにアルファベット4文字と
+日本語の通称をセットで書いてください(通称だけ、コードだけの記載は避けてください)。
+抽象的な一般論だけでなく、具体的な行動特性や、実務(FP業務・営業・チーム内での
+役割など)に落とし込んだ記述を心がけてください。
 
-- mbtiPersonality: MBTIタイプから見た基本性格(120字程度)
+- mbtiPersonality: MBTIタイプから見た基本性格。強み・弱み・思考のクセ・
+  コミュニケーションの特徴に触れながら300字程度で
 - fortunePersonality: 占い(九星気学・六星占術)からわかる本人の性格・基本的な運勢の
-  傾向、および${params.currentYear}年の運勢の傾向(150字程度)
+  傾向、および${params.currentYear}年の運勢の傾向(仕事運・対人運・注意点なども含め)を
+  300字程度で
 - overallSummary: ${testSection ? "テスト結果も踏まえて、" : ""}MBTIと占いを総合して見た
-  「本人はどういう人か」(120字程度)
-- howToHandle: 上司・同僚としてこの人とどう接するとよいか、扱い方・マネジメント上の
-  ポイント(120字程度)
-- goodCompatibility: 相性がよいと考えられるタイプを2つ、それぞれ「type」(MBTIタイプ名や
-  性格特性の呼び方)と「reason」(50字程度の理由)で
-- badCompatibility: 相性が悪い、または注意が必要と考えられるタイプを2つ、同様の形式で
+  「本人はどういう人か」を、具体的なエピソード的観点(得意な場面・苦手な場面など)も
+  交えて250字程度で
+- howToHandle: 上司・同僚としてこの人とどう接するとよいか、褒め方・注意の仕方・
+  任せると良い仕事・避けたほうがよい接し方など、実務的なマネジメント上の
+  ポイントを250字程度で
+- goodCompatibility: 相性がよいと考えられるタイプを3つ、それぞれ「type」(MBTIタイプなら
+  必ず「ENTJ(指揮官)」の形式、占いのタイプ名でも可)と「reason」(80字程度の具体的な理由)で
+- badCompatibility: 相性が悪い、または注意が必要と考えられるタイプを3つ、同様の形式で
+  (「reason」には、どう付き合えば摩擦を減らせるかの一言アドバイスも含める)
 
 以下のJSON形式のみを出力してください。それ以外のテキストは一切含めないでください。
 {
@@ -287,8 +300,8 @@ ${testSection}
   "fortunePersonality": "...",
   "overallSummary": "...",
   "howToHandle": "...",
-  "goodCompatibility": [{"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}],
-  "badCompatibility": [{"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}]
+  "goodCompatibility": [{"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}],
+  "badCompatibility": [{"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}]
 }`;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -300,7 +313,7 @@ ${testSection}
     },
     body: JSON.stringify({
       model: CLAUDE_MODEL,
-      max_tokens: 1200,
+      max_tokens: 2200,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -323,12 +336,21 @@ ${testSection}
 
   const parsed = JSON.parse(match[0]) as ComprehensiveReport;
 
+  const normalizeEntry = (e: CompatibilityEntry): CompatibilityEntry => ({
+    type: applyMbtiNicknamesToText(e.type ?? ""),
+    reason: applyMbtiNicknamesToText(e.reason ?? ""),
+  });
+
   return {
-    mbtiPersonality: parsed.mbtiPersonality ?? "",
-    fortunePersonality: parsed.fortunePersonality ?? "",
-    overallSummary: parsed.overallSummary ?? "",
-    howToHandle: parsed.howToHandle ?? "",
-    goodCompatibility: Array.isArray(parsed.goodCompatibility) ? parsed.goodCompatibility : [],
-    badCompatibility: Array.isArray(parsed.badCompatibility) ? parsed.badCompatibility : [],
+    mbtiPersonality: applyMbtiNicknamesToText(parsed.mbtiPersonality ?? ""),
+    fortunePersonality: applyMbtiNicknamesToText(parsed.fortunePersonality ?? ""),
+    overallSummary: applyMbtiNicknamesToText(parsed.overallSummary ?? ""),
+    howToHandle: applyMbtiNicknamesToText(parsed.howToHandle ?? ""),
+    goodCompatibility: Array.isArray(parsed.goodCompatibility)
+      ? parsed.goodCompatibility.map(normalizeEntry)
+      : [],
+    badCompatibility: Array.isArray(parsed.badCompatibility)
+      ? parsed.badCompatibility.map(normalizeEntry)
+      : [],
   };
 }
