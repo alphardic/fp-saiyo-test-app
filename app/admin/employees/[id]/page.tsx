@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
+import { supabaseBrowser } from "@/lib/supabase/browser";
 
 interface Employee {
   id: string;
@@ -57,7 +57,14 @@ export default function EmployeeReportPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/admin/employees/${params.id}/report`);
+        const { data: sessionData } = await supabaseBrowser.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        if (!accessToken) {
+          throw new Error("ログインが必要です。");
+        }
+        const res = await fetch(`/api/admin/employees/${params.id}/report`, {
+          headers: { Authorization: "Bearer " + accessToken },
+        });
         const json = await res.json();
         if (!res.ok) {
           throw new Error(json.error || "レポートの取得に失敗しました。");
