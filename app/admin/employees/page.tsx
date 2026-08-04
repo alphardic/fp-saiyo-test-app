@@ -316,8 +316,15 @@ export default function EmployeesPage() {
         <a href="/admin" className="text-muted" style={{ fontSize: 13 }}>
           ← ダッシュボードへ戻る
         </a>
-        <h1 style={{ marginTop: 8 }}>社員管理</h1>
-        <p>社員の基本情報とMBTIを登録します。総合レポートで使用します。</p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <h1 style={{ marginTop: 8 }}>社員管理</h1>
+            <p>社員の基本情報とMBTIを登録します。総合レポートで使用します。</p>
+          </div>
+          <a href="/admin/employees/network" className="btn btn-outline btn-sm" style={{ marginTop: 8 }}>
+            相性の相関図
+          </a>
+        </div>
       </div>
 
       <div className="section">
