@@ -16,6 +16,33 @@ interface EmployeeRow {
   created_at: string;
 }
 
+interface LogicCandidateRow {
+  id: string;
+  employee_id: string | null;
+  invite_token: string;
+  created_at: string;
+  invited_by: string | null;
+}
+
+interface LogicSessionRow {
+  id: string;
+  candidate_id: string;
+  status: string;
+}
+
+const LOGIC_STATUS_DOT: Record<string, string> = {
+  not_issued: "⚫",
+  not_started: "⚪",
+  in_progress: "🟡",
+  completed: "🟢",
+};
+const LOGIC_STATUS_TEXT: Record<string, string> = {
+  not_issued: "未発行",
+  not_started: "未受験",
+  in_progress: "受験中",
+  completed: "採点済",
+};
+
 const MBTI_TYPES = [
   { code: "INTJ", name: "建築家" },
   { code: "INTP", name: "論理学者" },
@@ -42,8 +69,13 @@ function formatDate(iso: string | null) {
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
+  const [logicCandidates, setLogicCandidates] = useState<LogicCandidateRow[]>([]);
+  const [logicSessions, setLogicSessions] = useState<LogicSessionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [origin, setOrigin] = useState("");
+  const [issuingLogicId, setIssuingLogicId] = useState<string | null>(null);
+  const [copiedLogicId, setCopiedLogicId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -66,6 +98,7 @@ export default function EmployeesPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
+    setOrigin(window.location.origin);
     load();
   }, []);
 
@@ -92,7 +125,49 @@ export default function EmployeesPage() {
     }
     const body = await res.json();
     setEmployees(body.employees ?? []);
+    setLogicCandidates(body.logicCandidates ?? []);
+    setLogicSessions(body.logicSessions ?? []);
     setLoading(false);
+  }
+
+  function logicCandidateFor(employeeId: string) {
+    return logicCandidates.find((lc) => lc.employee_id === employeeId);
+  }
+
+  function logicSessionFor(logicCandidateId: string) {
+    return logicSessions.find((ls) => ls.candidate_id === logicCandidateId);
+  }
+
+  async function copyLogicLink(id: string, token: string) {
+    const link = origin + "/logic-exam/" + token;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedLogicId(id);
+      setTimeout(() => setCopiedLogicId((cur) => (cur === id ? null : cur)), 2000);
+    } catch {
+      prompt("このリンクをコピーしてください:", link);
+    }
+  }
+
+  async function issueLogicInvite(employeeId: string) {
+    const token = await getAccessToken();
+    if (!token) return;
+    setIssuingLogicId(employeeId);
+    const res = await fetch(`/api/admin/employees/${employeeId}/logic-invite`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+    });
+    setIssuingLogicId(null);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error || "発行に失敗しました。");
+      return;
+    }
+    const body = (await res.json()) as { logicInviteToken?: string };
+    await load();
+    if (body.logicInviteToken) {
+      await copyLogicLink(employeeId, body.logicInviteToken);
+    }
   }
 
   async function handleAdd() {
@@ -336,6 +411,7 @@ export default function EmployeesPage() {
                   <th>部署</th>
                   <th>生年月日</th>
                   <th>MBTI</th>
+                  <th>ロジカルテスト</th>
                   <th></th>
                 </tr>
               </thead>
@@ -352,7 +428,7 @@ export default function EmployeesPage() {
                             style={{ width: 100 }}
                           />
                         </td>
-                        <td colSpan={4}>
+                        <td colSpan={5}>
                           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                             <input
                               type="email"
@@ -409,6 +485,50 @@ export default function EmployeesPage() {
                       <td className="text-muted">{e.department || "-"}</td>
                       <td className="text-muted">{formatDate(e.birthdate)}</td>
                       <td className="text-muted">{e.mbti ? formatMbti(e.mbti) : "-"}</td>
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        {(() => {
+                          const lc = logicCandidateFor(e.id);
+                          const ls = lc ? logicSessionFor(lc.id) : null;
+                          const status = !lc ? "not_issued" : ls?.status ?? "not_started";
+                          return (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: 13 }}>
+                                {LOGIC_STATUS_DOT[status]} {LOGIC_STATUS_TEXT[status]}
+                              </span>
+                              {!lc ? (
+                                <button
+                                  onClick={() => issueLogicInvite(e.id)}
+                                  disabled={issuingLogicId === e.id}
+                                  className="btn btn-outline btn-sm"
+                                >
+                                  {issuingLogicId === e.id
+                                    ? "発行中..."
+                                    : copiedLogicId === e.id
+                                    ? "コピーしました"
+                                    : "招待を発行"}
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => copyLogicLink(e.id, lc.invite_token)}
+                                    className="btn btn-outline btn-sm"
+                                  >
+                                    {copiedLogicId === e.id ? "コピーしました" : "リンクをコピー"}
+                                  </button>
+                                  {status === "completed" && ls && (
+                                    <a
+                                      href={"/admin/logic-test/report/" + ls.id}
+                                      className="btn btn-outline btn-sm"
+                                    >
+                                      詳細レポート
+                                    </a>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                         <a href={"/admin/employees/" + e.id} className="btn btn-gold btn-sm">
                           総合レポート

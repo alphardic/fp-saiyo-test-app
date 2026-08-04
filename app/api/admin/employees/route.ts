@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 
 /**
  * GET /api/admin/employees
- * 社員一覧を取得する。
+ * 社員一覧 + 各社員のロジカルシンキング適性テストの受験状況をまとめて返す。
  */
 export async function GET(req: NextRequest) {
   const authResult = await requireAdmin(req);
@@ -21,7 +21,35 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "データの取得に失敗しました。" }, { status: 500 });
   }
 
-  return NextResponse.json({ employees });
+  const employeeIds = (employees ?? []).map((e) => e.id);
+
+  let logicCandidates: {
+    id: string;
+    employee_id: string | null;
+    invite_token: string;
+    created_at: string;
+    invited_by: string | null;
+  }[] = [];
+  let logicSessions: { id: string; candidate_id: string; status: string }[] = [];
+
+  if (employeeIds.length > 0) {
+    const { data: logicCandidatesData } = await supabase
+      .from("logic_candidates")
+      .select("id, employee_id, invite_token, created_at, invited_by")
+      .in("employee_id", employeeIds);
+    logicCandidates = logicCandidatesData ?? [];
+
+    const logicCandidateIds = logicCandidates.map((c) => c.id);
+    if (logicCandidateIds.length > 0) {
+      const { data: logicSessionsData } = await supabase
+        .from("logic_exam_sessions")
+        .select("id, candidate_id, status")
+        .in("candidate_id", logicCandidateIds);
+      logicSessions = logicSessionsData ?? [];
+    }
+  }
+
+  return NextResponse.json({ employees, logicCandidates, logicSessions });
 }
 
 /**
