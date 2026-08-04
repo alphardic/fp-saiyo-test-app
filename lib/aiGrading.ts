@@ -226,6 +226,11 @@ export interface CompatibilityEntry {
   reason: string;
 }
 
+export interface RoleFitEntry {
+  role: string;
+  reason: string;
+}
+
 export interface ComprehensiveReport {
   mbtiPersonality: string;
   fortunePersonality: string;
@@ -233,7 +238,20 @@ export interface ComprehensiveReport {
   howToHandle: string;
   goodCompatibility: CompatibilityEntry[];
   badCompatibility: CompatibilityEntry[];
+  suitableRoles: RoleFitEntry[];
 }
+
+// 社内の職種区分(適性職種の判定に使う)
+const JOB_ROLES = [
+  "開拓",
+  "FP",
+  "保険販売",
+  "不動産販売",
+  "不動産仕入",
+  "事務",
+  "マネソルの販売",
+  "マーケティング",
+];
 
 /**
  * MBTI・九星気学・六星占術・(あれば)本システムのテスト結果を統合し、
@@ -293,6 +311,11 @@ MBTIタイプに言及する際は、必ず「ENTJ(指揮官)」のようにア�
   必ず「ENTJ(指揮官)」の形式、占いのタイプ名でも可)と「reason」(80字程度の具体的な理由)で
 - badCompatibility: 相性が悪い、または注意が必要と考えられるタイプを3つ、同様の形式で
   (「reason」には、どう付き合えば摩擦を減らせるかの一言アドバイスも含める)
+- suitableRoles: 以下の社内職種区分の中から、適性が高いと考えられるものを2〜3個、
+  適性が高い順に選んでください。リストにない職種名を作らないでください。
+  それぞれ「role」(職種名。以下のリストの表記をそのまま使う)と「reason」
+  (60字程度の具体的な理由。その人の性格特性がその仕事のどんな場面で活きるかを書く)で。
+  職種区分: ${JOB_ROLES.join("、")}
 
 以下のJSON形式のみを出力してください。それ以外のテキストは一切含めないでください。
 {
@@ -301,7 +324,8 @@ MBTIタイプに言及する際は、必ず「ENTJ(指揮官)」のようにア�
   "overallSummary": "...",
   "howToHandle": "...",
   "goodCompatibility": [{"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}],
-  "badCompatibility": [{"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}]
+  "badCompatibility": [{"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}],
+  "suitableRoles": [{"role": "...", "reason": "..."}, {"role": "...", "reason": "..."}]
 }`;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -341,11 +365,19 @@ MBTIタイプに言及する際は、必ず「ENTJ(指揮官)」のようにア�
     reason: applyMbtiNicknamesToText(e.reason ?? ""),
   });
 
+  const normalizeRole = (r: RoleFitEntry): RoleFitEntry => ({
+    role: r.role ?? "",
+    reason: applyMbtiNicknamesToText(r.reason ?? ""),
+  });
+
   return {
     mbtiPersonality: applyMbtiNicknamesToText(parsed.mbtiPersonality ?? ""),
     fortunePersonality: applyMbtiNicknamesToText(parsed.fortunePersonality ?? ""),
     overallSummary: applyMbtiNicknamesToText(parsed.overallSummary ?? ""),
     howToHandle: applyMbtiNicknamesToText(parsed.howToHandle ?? ""),
+    suitableRoles: Array.isArray(parsed.suitableRoles)
+      ? parsed.suitableRoles.map(normalizeRole)
+      : [],
     goodCompatibility: Array.isArray(parsed.goodCompatibility)
       ? parsed.goodCompatibility.map(normalizeEntry)
       : [],

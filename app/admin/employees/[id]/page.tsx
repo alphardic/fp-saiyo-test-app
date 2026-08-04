@@ -29,6 +29,11 @@ interface CompatibilityEntry {
   reason: string;
 }
 
+interface RoleFitEntry {
+  role: string;
+  reason: string;
+}
+
 interface ComprehensiveReport {
   mbtiPersonality: string;
   fortunePersonality: string;
@@ -36,6 +41,7 @@ interface ComprehensiveReport {
   howToHandle: string;
   goodCompatibility: CompatibilityEntry[];
   badCompatibility: CompatibilityEntry[];
+  suitableRoles: RoleFitEntry[];
 }
 
 interface ReportResponse {
@@ -138,6 +144,18 @@ export default function EmployeeReportPage() {
             <h2 className="section-title">この人の扱い方</h2>
             <div className="card">
               <p>{data.report.howToHandle}</p>
+            </div>
+          </div>
+
+          <div className="section">
+            <h2 className="section-title">適性がある仕事</h2>
+            <div className="card">
+              {data.report.suitableRoles.map((r, i) => (
+                <div key={i} style={{ marginBottom: 10 }}>
+                  <span className="badge">{r.role}</span>
+                  <p style={{ margin: "4px 0 0" }}>{r.reason}</p>
+                </div>
+              ))}
             </div>
           </div>
 
