@@ -31,7 +31,17 @@ interface CompatibilityEntry {
 
 interface RoleFitEntry {
   role: string;
+  stars: number;
   reason: string;
+}
+
+function StarRating({ stars }: { stars: number }) {
+  return (
+    <span style={{ color: "#c9a24b", letterSpacing: 1 }}>
+      {"★".repeat(stars)}
+      <span style={{ color: "#dcdfe4" }}>{"★".repeat(5 - stars)}</span>
+    </span>
+  );
 }
 
 interface ComprehensiveReport {
@@ -149,13 +159,31 @@ export default function EmployeeReportPage() {
 
           <div className="section">
             <h2 className="section-title">適性がある仕事</h2>
-            <div className="card">
-              {data.report.suitableRoles.map((r, i) => (
-                <div key={i} style={{ marginBottom: 10 }}>
-                  <span className="badge">{r.role}</span>
-                  <p style={{ margin: "4px 0 0" }}>{r.reason}</p>
-                </div>
-              ))}
+            <div className="card" style={{ padding: 0 }}>
+              <div className="table-wrap" style={{ border: "none" }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th style={{ padding: "8px 12px" }}>職種</th>
+                      <th style={{ padding: "8px 12px" }}>適性</th>
+                      <th style={{ padding: "8px 12px" }}>理由</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.report.suitableRoles.map((r, i) => (
+                      <tr key={i}>
+                        <td style={{ padding: "8px 12px", fontWeight: 500, whiteSpace: "nowrap" }}>
+                          {r.role}
+                        </td>
+                        <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>
+                          <StarRating stars={r.stars} />
+                        </td>
+                        <td style={{ padding: "8px 12px", fontSize: 13 }}>{r.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 

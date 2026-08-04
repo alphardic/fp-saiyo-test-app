@@ -228,6 +228,7 @@ export interface CompatibilityEntry {
 
 export interface RoleFitEntry {
   role: string;
+  stars: number;
   reason: string;
 }
 
@@ -251,6 +252,9 @@ const JOB_ROLES = [
   "事務",
   "マネソルの販売",
   "マーケティング",
+  "マネジメント",
+  "企画",
+  "経営",
 ];
 
 /**
@@ -311,10 +315,12 @@ MBTIタイプに言及する際は、必ず「ENTJ(指揮官)」のようにア�
   必ず「ENTJ(指揮官)」の形式、占いのタイプ名でも可)と「reason」(80字程度の具体的な理由)で
 - badCompatibility: 相性が悪い、または注意が必要と考えられるタイプを3つ、同様の形式で
   (「reason」には、どう付き合えば摩擦を減らせるかの一言アドバイスも含める)
-- suitableRoles: 以下の社内職種区分の中から、適性が高いと考えられるものを2〜3個、
-  適性が高い順に選んでください。リストにない職種名を作らないでください。
-  それぞれ「role」(職種名。以下のリストの表記をそのまま使う)と「reason」
-  (60字程度の具体的な理由。その人の性格特性がその仕事のどんな場面で活きるかを書く)で。
+- suitableRoles: 以下の社内職種区分「全て」について、適性の高さを1〜5の整数(星の数、
+  5が最も適性が高い)で評価してください。リストにない職種名を作らない・省略しない、
+  必ず全職種分を出力してください。それぞれ「role」(職種名。以下のリストの表記を
+  そのまま使う)、「stars」(1〜5の整数)、「reason」(40字程度の具体的な理由。
+  その人の性格特性がその仕事のどんな場面で活きる/活きにくいかを書く)で。
+  評価には差をつけ、全職種が同じ星数にならないようにしてください。
   職種区分: ${JOB_ROLES.join("、")}
 
 以下のJSON形式のみを出力してください。それ以外のテキストは一切含めないでください。
@@ -325,7 +331,7 @@ MBTIタイプに言及する際は、必ず「ENTJ(指揮官)」のようにア�
   "howToHandle": "...",
   "goodCompatibility": [{"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}],
   "badCompatibility": [{"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}, {"type": "...", "reason": "..."}],
-  "suitableRoles": [{"role": "...", "reason": "..."}, {"role": "...", "reason": "..."}]
+  "suitableRoles": [{"role": "...", "stars": 1, "reason": "..."}, ...(職種区分の数だけ全部)
 }`;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -337,7 +343,7 @@ MBTIタイプに言及する際は、必ず「ENTJ(指揮官)」のようにア�
     },
     body: JSON.stringify({
       model: CLAUDE_MODEL,
-      max_tokens: 2200,
+      max_tokens: 3000,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -367,6 +373,7 @@ MBTIタイプに言及する際は、必ず「ENTJ(指揮官)」のようにア�
 
   const normalizeRole = (r: RoleFitEntry): RoleFitEntry => ({
     role: r.role ?? "",
+    stars: Math.max(1, Math.min(5, Math.round(Number(r.stars) || 1))),
     reason: applyMbtiNicknamesToText(r.reason ?? ""),
   });
 
@@ -376,7 +383,7 @@ MBTIタイプに言及する際は、必ず「ENTJ(指揮官)」のようにア�
     overallSummary: applyMbtiNicknamesToText(parsed.overallSummary ?? ""),
     howToHandle: applyMbtiNicknamesToText(parsed.howToHandle ?? ""),
     suitableRoles: Array.isArray(parsed.suitableRoles)
-      ? parsed.suitableRoles.map(normalizeRole)
+      ? parsed.suitableRoles.map(normalizeRole).sort((a, b) => b.stars - a.stars)
       : [],
     goodCompatibility: Array.isArray(parsed.goodCompatibility)
       ? parsed.goodCompatibility.map(normalizeEntry)
