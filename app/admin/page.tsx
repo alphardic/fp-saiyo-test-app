@@ -24,6 +24,7 @@ interface CandidateRow {
   fp_affiliation: string | null;
   invited_by: string | null;
   birthdate: string | null;
+  hired_employee_id: string | null;
 }
 
 interface LogicCandidateRow {
@@ -122,6 +123,8 @@ export default function AdminDashboardPage() {
   const [gradingId, setGradingId] = useState<string | null>(null);
   const [gradeError, setGradeError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [hiringId, setHiringId] = useState<string | null>(null);
+  const [hireError, setHireError] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -394,6 +397,25 @@ export default function AdminDashboardPage() {
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       alert(body.error || "削除に失敗しました。");
+      return;
+    }
+    await load();
+  }
+
+  async function hireCandidate(c: CandidateRow) {
+    if (!confirm(`${c.name} さんを社員として登録します。よろしいですか？`)) return;
+    setHireError(null);
+    const token = await getAccessToken();
+    if (!token) return;
+    setHiringId(c.id);
+    const res = await fetch(`/api/admin/candidates/${c.id}/hire`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+    });
+    setHiringId(null);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setHireError(body.error || "入社処理に失敗しました。");
       return;
     }
     await load();
@@ -906,10 +928,33 @@ export default function AdminDashboardPage() {
                               <div style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
                                 {c.email}
                               </div>
-                              <a href={"/admin/candidate/" + c.id} className="btn btn-gold btn-sm">
-                                総合レポートを見る
-                              </a>
+                              <div style={{ display: "flex", gap: 8 }}>
+                                {c.hired_employee_id ? (
+                                  <a
+                                    href={"/admin/employees/" + c.hired_employee_id}
+                                    className="btn btn-outline btn-sm"
+                                  >
+                                    入社済み(社員レポートを見る)
+                                  </a>
+                                ) : (
+                                  <button
+                                    onClick={() => hireCandidate(c)}
+                                    disabled={hiringId === c.id}
+                                    className="btn btn-outline btn-sm"
+                                  >
+                                    {hiringId === c.id ? "処理中..." : "入社"}
+                                  </button>
+                                )}
+                                <a href={"/admin/candidate/" + c.id} className="btn btn-gold btn-sm">
+                                  総合レポートを見る
+                                </a>
+                              </div>
                             </div>
+                            {hireError && (
+                              <div className="alert alert-error" style={{ marginBottom: 12 }}>
+                                {hireError}
+                              </div>
+                            )}
                             <div
                               className="text-muted"
                               style={{ fontSize: 12, marginBottom: 12 }}
