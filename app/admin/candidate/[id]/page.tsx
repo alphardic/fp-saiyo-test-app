@@ -1,9 +1,8 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-
+import { formatMbti } from "@/lib/mbti";
 interface MainReportData {
   candidateName: string;
   candidateEmail: string;
@@ -11,20 +10,17 @@ interface MainReportData {
   fieldScores: Record<string, number>;
   overallSummary: string | null;
 }
-
 interface LogicReportSummary {
   logic_score: number;
   hearing_score: number;
   self_persuasion_score: number;
   overall_summary: string;
 }
-
 function scoreColor(score: number) {
   if (score >= 70) return "var(--color-success)";
   if (score >= 40) return "var(--color-warning)";
   return "var(--color-error)";
 }
-
 function ScoreBar({ label, score }: { label: string; score: number }) {
   return (
     <div style={{ marginBottom: 14 }}>
@@ -45,39 +41,31 @@ function ScoreBar({ label, score }: { label: string; score: number }) {
     </div>
   );
 }
-
 export default function CombinedCandidateReportPage() {
   const params = useParams<{ id: string }>();
   const candidateId = params.id;
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [candidateName, setCandidateName] = useState("");
   const [candidateEmail, setCandidateEmail] = useState("");
-
   const [mainStatus, setMainStatus] = useState("not_started");
   const [mainSessionId, setMainSessionId] = useState<string | null>(null);
   const [mainReport, setMainReport] = useState<MainReportData | null>(null);
-
   const [logicStatus, setLogicStatus] = useState("not_issued");
   const [logicSessionId, setLogicSessionId] = useState<string | null>(null);
   const [logicReport, setLogicReport] = useState<LogicReportSummary | null>(null);
   const [logicMbti, setLogicMbti] = useState<string | null>(null);
-
   useEffect(() => {
     if (candidateId) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidateId]);
-
   async function authHeader() {
     const { data } = await supabaseBrowser.auth.getSession();
     return { Authorization: "Bearer " + (data.session?.access_token ?? "") };
   }
-
   async function load() {
     setLoading(true);
     setError(null);
-
     const headers = await authHeader();
     const dashRes = await fetch("/api/admin/dashboard", { headers });
     if (!dashRes.ok) {
@@ -86,7 +74,6 @@ export default function CombinedCandidateReportPage() {
       return;
     }
     const dash = await dashRes.json();
-
     const candidate = (dash.candidates ?? []).find(
       (c: { id: string; name: string; email: string }) => c.id === candidateId
     );
@@ -97,14 +84,12 @@ export default function CombinedCandidateReportPage() {
     }
     setCandidateName(candidate.name);
     setCandidateEmail(candidate.email);
-
     const session = (dash.sessions ?? []).find(
       (s: { candidate_id: string }) => s.candidate_id === candidateId
     );
     const mStatus = session?.status ?? "not_started";
     setMainStatus(mStatus);
     if (session) setMainSessionId(session.id);
-
     const logicCandidate = (dash.logicCandidates ?? []).find(
       (lc: { main_candidate_id: string | null }) => lc.main_candidate_id === candidateId
     );
@@ -120,7 +105,6 @@ export default function CombinedCandidateReportPage() {
     }
     setLogicStatus(lStatus);
     setLogicSessionId(lSessionId);
-
     const fetches: Promise<void>[] = [];
     if (session && mStatus === "graded") {
       fetches.push(
@@ -142,7 +126,6 @@ export default function CombinedCandidateReportPage() {
     await Promise.all(fetches);
     setLoading(false);
   }
-
   if (loading) {
     return (
       <main className="page">
@@ -150,7 +133,6 @@ export default function CombinedCandidateReportPage() {
       </main>
     );
   }
-
   if (error) {
     return (
       <main className="page page-narrow">
@@ -165,7 +147,6 @@ export default function CombinedCandidateReportPage() {
       </main>
     );
   }
-
   return (
     <main className="page page-wide">
       <div className="page-header">
@@ -175,7 +156,6 @@ export default function CombinedCandidateReportPage() {
         <h1 style={{ marginTop: 8 }}>{candidateName} さんの総合レポート</h1>
         <p>{candidateEmail}</p>
       </div>
-
       <div className="section">
         <div className="section-title">
           <span className="dot" />
@@ -211,7 +191,6 @@ export default function CombinedCandidateReportPage() {
           )}
         </div>
       </div>
-
       <div className="section" style={{ marginBottom: 0 }}>
         <div className="section-title">
           <span className="dot" />
@@ -229,7 +208,7 @@ export default function CombinedCandidateReportPage() {
               {logicMbti && (
                 <p style={{ fontSize: 13, marginBottom: 16 }}>
                   <span className="text-muted">MBTI: </span>
-                  <span style={{ fontWeight: 600 }}>{logicMbti}</span>
+                  <span style={{ fontWeight: 600 }}>{formatMbti(logicMbti)}</span>
                 </p>
               )}
               {logicReport.overall_summary && (
