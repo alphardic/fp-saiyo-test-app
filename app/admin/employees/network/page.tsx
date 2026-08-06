@@ -32,6 +32,18 @@ function scoreColor(score: number): string {
   return "#adb5bd"; // グレー: 普通
 }
 
+function scoreLabel(score: number): string {
+  if (score >= 80) return "とても良い";
+  if (score >= 70) return "良い";
+  return "普通";
+}
+
+const LEGEND_ITEMS = [
+  { color: "#2f9e44", label: "とても良い(80点以上)" },
+  { color: "#74b816", label: "良い(70〜79点)" },
+  { color: "#adb5bd", label: "普通(60〜69点)" },
+];
+
 export default function EmployeeNetworkPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const networkRef = useRef<any>(null);
@@ -46,6 +58,7 @@ export default function EmployeeNetworkPage() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("overall");
   const [ready, setReady] = useState(false);
+  const [nameById, setNameById] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +111,7 @@ export default function EmployeeNetworkPage() {
       profiles.push({ id: e.id, name: e.name, profile: { mbti: e.mbti, kyuseiStar, rokusei } });
     }
     setSkipped(skippedNames);
+    setNameById(Object.fromEntries(profiles.map((p) => [p.id, p.name])));
 
     if (profiles.length < 2) return;
 
@@ -139,7 +153,10 @@ export default function EmployeeNetworkPage() {
         { nodes, edges },
         {
           nodes: { borderWidth: 2 },
-          edges: { smooth: { enabled: true, type: "continuous", roundness: 0.2 } },
+          edges: {
+            smooth: { enabled: true, type: "continuous", roundness: 0.2 },
+            font: { size: 13, strokeWidth: 4, strokeColor: "#ffffff", align: "middle" },
+          },
           physics: {
             solver: "forceAtlas2Based",
             forceAtlas2Based: { gravitationalConstant: -60, springLength: 140 },
@@ -181,10 +198,10 @@ export default function EmployeeNetworkPage() {
       result.push({
         from: s.a,
         to: s.b,
-        value: score,
+        label: String(score),
         width: Math.max(1, (score - 50) / 8),
-        color: { color: scoreColor(score), opacity: 0.7 },
-        title: `${MODE_LABELS[m]}相性: ${score}点`,
+        color: { color: scoreColor(score), opacity: 0.85 },
+        title: `${MODE_LABELS[m]}相性: ${score}点(${scoreLabel(score)})`,
       });
     });
     return result;
@@ -199,7 +216,8 @@ export default function EmployeeNetworkPage() {
         <h1 style={{ marginTop: 8 }}>相性の相関図</h1>
         <p>
           MBTI・九星気学・六星占術の一般的な傾向に基づく、社員間の相性の参考値です。
-          スコア{SCORE_THRESHOLD}点以上のペアのみ線でつないでいます(断定的な診断ではありません)。
+          点数が高いほど相性が良い傾向があるという参考値で、断定的な診断ではありません。
+          スコア{SCORE_THRESHOLD}点未満のペアは図に線を出していません。
         </p>
       </div>
 
@@ -209,7 +227,7 @@ export default function EmployeeNetworkPage() {
       {!loading && !error && (
         <>
           <div className="card" style={{ marginBottom: 16 }}>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
               {(Object.keys(MODE_LABELS) as Mode[]).map((m) => (
                 <button
                   key={m}
@@ -220,6 +238,23 @@ export default function EmployeeNetworkPage() {
                 </button>
               ))}
             </div>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12 }}>
+              {LEGEND_ITEMS.map((item) => (
+                <span key={item.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 20,
+                      height: 4,
+                      borderRadius: 2,
+                      background: item.color,
+                    }}
+                  />
+                  {item.label}
+                </span>
+              ))}
+              <span className="text-muted">線の上の数字がスコア(0〜100点)です</span>
+            </div>
           </div>
 
           {skipped.length > 0 && (
@@ -229,8 +264,54 @@ export default function EmployeeNetworkPage() {
             </div>
           )}
 
-          <div className="card" style={{ padding: 0 }}>
+          <div className="card" style={{ padding: 0, marginBottom: 16 }}>
             <div ref={containerRef} style={{ width: "100%", height: 560 }} />
+          </div>
+
+          <div className="section" style={{ marginBottom: 0 }}>
+            <div className="section-title">
+              <span className="dot" />
+              <h2>相性スコア一覧(全ペア・{MODE_LABELS[mode]})</h2>
+            </div>
+            <div className="card" style={{ padding: 0 }}>
+              <div className="table-wrap" style={{ border: "none" }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th style={{ padding: "8px 12px" }}>組み合わせ</th>
+                      <th style={{ padding: "8px 12px" }}>スコア</th>
+                      <th style={{ padding: "8px 12px" }}>評価</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from(pairScoresRef.current.values())
+                      .sort((x, y) => y[mode] - x[mode])
+                      .map((s, i) => (
+                        <tr key={i}>
+                          <td style={{ padding: "8px 12px" }}>
+                            {nameById[s.a] ?? "?"} ⇔ {nameById[s.b] ?? "?"}
+                          </td>
+                          <td style={{ padding: "8px 12px", fontWeight: 600 }}>{s[mode]}点</td>
+                          <td style={{ padding: "8px 12px" }}>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: 10,
+                                height: 10,
+                                borderRadius: "50%",
+                                background: scoreColor(s[mode]),
+                                marginRight: 6,
+                                verticalAlign: "middle",
+                              }}
+                            />
+                            {scoreLabel(s[mode])}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </>
       )}
