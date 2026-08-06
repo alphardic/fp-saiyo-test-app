@@ -228,9 +228,9 @@ function LogicRadarBlock({ candidateIds }: { candidateIds: string[] }) {
   if (loading || !data || data.candidates.length < 2) return null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, width: 320 }}>
       <LogicRadarSvg candidates={data.candidates} />
-      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12, width: "100%" }}>
         {data.candidates.map((c, i) => (
           <div key={c.sessionId} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
             <span
@@ -240,9 +240,12 @@ function LogicRadarBlock({ candidateIds }: { candidateIds: string[] }) {
                 height: 10,
                 borderRadius: "50%",
                 background: COLORS[i % COLORS.length],
+                flexShrink: 0,
               }}
             />
-            {c.name}(ロジカル総合{c.overallScore}点)
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {c.name}(ロジカル総合{c.overallScore}点)
+            </span>
           </div>
         ))}
       </div>
@@ -450,10 +453,10 @@ function ComparePageInner() {
           <span className="dot" />
           <h2>分野別スコア(レーダーチャート)</h2>
         </div>
-        <div className="card" style={{ display: "flex", flexWrap: "nowrap", gap: 32, alignItems: "flex-start", justifyContent: "center", overflowX: "auto" }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+        <div className="card" style={{ display: "flex", flexWrap: "wrap", gap: 32, alignItems: "flex-start", justifyContent: "center" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, width: 420 }}>
             <RadarChart candidates={data.candidates} />
-            <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12, width: "100%" }}>
               {data.candidates.map((c, i) => (
                 <div key={c.sessionId} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
                   <span
@@ -463,9 +466,12 @@ function ComparePageInner() {
                       height: 10,
                       borderRadius: "50%",
                       background: COLORS[i % COLORS.length],
+                      flexShrink: 0,
                     }}
                   />
-                  {c.name}(総合{c.overallScore}点)
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {c.name}(総合{c.overallScore}点)
+                  </span>
                 </div>
               ))}
             </div>
