@@ -129,14 +129,23 @@ export default function ReportPage() {
 
   return (
     <main className="page page-wide">
-      <div className="page-header">
-        <a href="/admin" className="text-muted" style={{ fontSize: 13 }}>
-          ← ダッシュボードへ戻る
-        </a>
-        <h1 style={{ marginTop: 8 }}>{data.candidateName} 様のレポート</h1>
-        <p>
-          {data.candidateEmail} ・ 提出日時: {data.submittedAt ?? "-"}
-        </p>
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
+        <div>
+          <a href="/admin" className="text-muted no-print" style={{ fontSize: 13 }}>
+            ← ダッシュボードへ戻る
+          </a>
+          <h1 style={{ marginTop: 8 }}>{data.candidateName} 様のレポート</h1>
+          <p style={{ marginBottom: 0 }}>
+            {data.candidateEmail} ・ 提出日時: {data.submittedAt ?? "-"}
+          </p>
+        </div>
+        <button
+          onClick={() => window.print()}
+          className="btn btn-outline btn-sm no-print"
+          style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 6 }}
+        >
+          📄 PDFとして保存 / 印刷
+        </button>
       </div>
 
       <div className="section">
@@ -157,7 +166,7 @@ export default function ReportPage() {
           <button
             onClick={() => load(true)}
             disabled={regenerating}
-            className="btn btn-outline btn-sm mt-24"
+            className="btn btn-outline btn-sm mt-24 no-print"
           >
             {regenerating ? "再生成中..." : "総評を再生成する"}
           </button>

@@ -519,3 +519,36 @@ table.table tbody tr:hover {
     font-size: 22px;
   }
 }
+
+/* ---------- 印刷・PDF用スタイル ---------- */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .topbar,
+  .no-print,
+  .btn,
+  button,
+  a[href="/admin"] {
+    display: none !important;
+  }
+
+  .page {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .card {
+    box-shadow: none !important;
+    border: 1px solid #cbd5e1 !important;
+    page-break-inside: avoid;
+  }
+
+  .section {
+    page-break-inside: avoid;
+  }
+}
