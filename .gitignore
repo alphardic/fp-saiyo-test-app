@@ -3,4 +3,7 @@ node_modules
 .vercel
 .open-next
 .wrangler
-c
+.env
+.env.local
+.env*.local
+.dev.vars
