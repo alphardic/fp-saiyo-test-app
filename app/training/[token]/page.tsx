@@ -19,6 +19,8 @@ interface StatusResponse {
   lastResult: { score: number; total: number; passed: boolean } | null;
   inProgressAttemptId: string | null;
   questions: Question[];
+  totalQuestions: number;
+  passThreshold: number;
 }
 
 interface SubmitResult {
@@ -130,14 +132,20 @@ export default function TrainingExamPage() {
 
   if (!status) return null;
 
+  const passPercent = Math.round((status.passThreshold / status.totalQuestions) * 100);
+
   // 受験中(進行中の受験がある)
   if (questions) {
     const answeredCount = questions.filter((q) => answers[q.id]).length;
+    const threshold = Math.ceil(questions.length * (status.passThreshold / status.totalQuestions));
     return (
       <main className="page page-wide">
         <div className="page-header">
           <h1>{status.courseName}</h1>
-          <p>{status.employeeName} 様、全{questions.length}問です。全問正解で合格となります。</p>
+          <p>
+            {status.employeeName} 様、全{questions.length}問中{threshold}問(
+            {Math.round((threshold / questions.length) * 100)}%)以上の正解で合格です。
+          </p>
         </div>
 
         <div className="alert alert-info">
@@ -196,17 +204,11 @@ export default function TrainingExamPage() {
         <p>{status.employeeName} 様</p>
       </div>
 
-      {status.courseDescription && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <p className="text-muted" style={{ marginBottom: 0 }}>{status.courseDescription}</p>
-        </div>
-      )}
-
       {result && (
         <div className={`alert ${result.passed ? "alert-success" : "alert-error"}`}>
           {result.passed
             ? `合格です！(${result.score} / ${result.total}問正解)`
-            : `不合格でした(${result.score} / ${result.total}問正解)。全問正解で合格となります。`}
+            : `不合格でした(${result.score} / ${result.total}問正解)。${status.passThreshold}問(${passPercent}%)以上の正解で合格となります。`}
         </div>
       )}
 
@@ -218,9 +220,41 @@ export default function TrainingExamPage() {
 
       {!result && !status.passed && status.attemptCount > 0 && (
         <div className="alert alert-error">
-          前回は不合格でした。({status.lastResult?.score} / {status.lastResult?.total}問正解)全問正解するまで何度でも再受験できます。
+          前回は不合格でした。({status.lastResult?.score} / {status.lastResult?.total}問正解)
+          {status.passThreshold}問({passPercent}%)以上正解するまで何度でも再受験できます。
         </div>
       )}
+
+      {status.attemptCount === 0 && !status.passed && (
+        <div className="card" style={{ marginBottom: 16, background: "#fff7ed", borderColor: "#fdba74" }}>
+          <p style={{ fontWeight: 600, marginBottom: 4 }}>
+            🏠 このテストに合格しないと、MUJIハウス経由のお客様を担当できません
+          </p>
+          <p className="text-muted" style={{ marginBottom: 0 }}>
+            MUJIハウスとの提携は、紹介いただいたお客様に正しい知識と自信を持って対応できることが前提です。このテストに合格することが、MUJIハウスの現場デビューの第一歩になります。
+          </p>
+        </div>
+      )}
+
+      {status.courseDescription && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p className="text-muted" style={{ marginBottom: 0 }}>{status.courseDescription}</p>
+        </div>
+      )}
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <p style={{ fontWeight: 600, marginBottom: 12 }}>テストのルール</p>
+        <ul style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 8 }}>
+          <li>出題数: {status.totalQuestions}問(4択形式)</li>
+          <li>
+            合格ライン: {status.passThreshold}問({passPercent}%)以上の正解
+          </li>
+          <li>所要時間の目安: 約15〜20分</li>
+          <li>
+            何度でも再受験できます。不合格の場合、次回受験時は設問の一部が別のパターンに入れ替わります(丸暗記対策)
+          </li>
+        </ul>
+      </div>
 
       <div className="card text-center">
         <p className="text-muted">

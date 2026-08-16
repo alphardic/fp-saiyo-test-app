@@ -8,6 +8,13 @@ export class TrainingAccessError extends Error {
   }
 }
 
+/** 合格に必要な正答率。出題数に応じて合格ラインを動的に計算する(例: 20問なら16問以上)。 */
+const PASS_RATIO = 0.8;
+
+function passThresholdFor(total: number): number {
+  return Math.ceil(total * PASS_RATIO);
+}
+
 interface AttemptRow {
   id: string;
   status: "in_progress" | "submitted";
@@ -90,6 +97,13 @@ export async function getTrainingStatusForToken(token: string) {
   const submittedAttempts = attemptRows.filter((a) => a.status === "submitted");
   const passed = submittedAttempts.some((a) => a.passed);
 
+  const { data: pool } = await supabase
+    .from("training_questions")
+    .select("group_key")
+    .eq("course_id", enrollment.course_id)
+    .eq("status", "active");
+  const totalQuestions = new Set((pool ?? []).map((q) => q.group_key)).size;
+
   let currentQuestions: {
     id: string;
     group_label: string;
@@ -118,6 +132,8 @@ export async function getTrainingStatusForToken(token: string) {
     lastResult: submittedAttempts[0] ?? null,
     inProgressAttemptId: inProgress?.id ?? null,
     questions: currentQuestions,
+    totalQuestions,
+    passThreshold: passThresholdFor(totalQuestions),
   };
 }
 
@@ -182,7 +198,7 @@ export async function startTrainingAttempt(token: string) {
 }
 
 /**
- * 進行中の受験を採点・提出する。全問正解の場合のみ合格。
+ * 進行中の受験を採点・提出する。正答率がPASS_RATIO以上の場合に合格。
  * app/api/training/[token]/submit/route.ts から利用。
  */
 export async function submitTrainingAttempt(
@@ -229,7 +245,7 @@ export async function submitTrainingAttempt(
     await supabase.from("training_answers").upsert(rows, { onConflict: "attempt_id,question_id" });
   }
 
-  const passed = total > 0 && correctCount === total;
+  const passed = total > 0 && correctCount >= passThresholdFor(total);
 
   await supabase
     .from("training_attempts")
