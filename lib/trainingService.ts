@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { sendTrainingResultNotification } from "@/lib/notify";
 
 export class TrainingAccessError extends Error {
   status: number;
@@ -67,7 +68,7 @@ async function loadEnrollment(token: string) {
   }
 
   const [{ data: employee }, { data: course }] = await Promise.all([
-    supabase.from("employees").select("name").eq("id", enrollment.employee_id).single(),
+    supabase.from("employees").select("name, email").eq("id", enrollment.employee_id).single(),
     supabase
       .from("training_courses")
       .select("name, description")
@@ -217,7 +218,7 @@ export async function submitTrainingAttempt(
   token: string,
   answersInput: { questionId: string; answer: string }[]
 ) {
-  const { supabase, enrollment } = await loadEnrollment(token);
+  const { supabase, enrollment, employee, course } = await loadEnrollment(token);
 
   const { data: attempt, error: attemptError } = await supabase
     .from("training_attempts")
@@ -292,6 +293,17 @@ export async function submitTrainingAttempt(
       submitted_at: new Date().toISOString(),
     })
     .eq("id", attempt.id);
+
+  if (employee?.email) {
+    await sendTrainingResultNotification({
+      employeeName: employee.name ?? "",
+      employeeEmail: employee.email,
+      courseName: course?.name ?? "",
+      score: correctCount,
+      total,
+      passed,
+    });
+  }
 
   return { attemptId: attempt.id as string, score: correctCount, total, passed, items };
 }

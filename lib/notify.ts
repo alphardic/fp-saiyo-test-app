@@ -48,6 +48,61 @@ export async function sendSubmissionNotification(params: {
   }
 }
 
+const TRAINING_NOTIFY_TO = "saiyo_kyoiku@alpha-fp.com";
+
+/**
+ * 分野別社内テストの受験(採点)が完了したタイミングで、指定のメールアドレスへ結果を通知する。
+ * Resend APIを使用。送信に失敗しても例外は投げず、ログに残すだけにする
+ * (通知メールの失敗で受験者の提出自体を失敗させないため)。
+ */
+export async function sendTrainingResultNotification(params: {
+  employeeName: string;
+  employeeEmail: string;
+  courseName: string;
+  score: number;
+  total: number;
+  passed: boolean;
+}): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.error("RESEND_API_KEY が設定されていないため、通知メールをスキップしました。");
+    return;
+  }
+
+  const resultLabel = params.passed ? "合格" : "不合格";
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        from: "分野別社内テスト <onboarding@resend.dev>",
+        to: [TRAINING_NOTIFY_TO],
+        subject: `【${escapeHtml(params.courseName)}】${params.employeeName}様が受験しました(${resultLabel}・${params.score}/${params.total})`,
+        html: `
+          <p>以下の社員が分野別社内テストを受験しました。</p>
+          <table cellpadding="6" style="border-collapse:collapse">
+            <tr><td style="color:#64748b">テスト</td><td>${escapeHtml(params.courseName)}</td></tr>
+            <tr><td style="color:#64748b">氏名</td><td>${escapeHtml(params.employeeName)}</td></tr>
+            <tr><td style="color:#64748b">メールアドレス</td><td>${escapeHtml(params.employeeEmail)}</td></tr>
+            <tr><td style="color:#64748b">結果</td><td>${resultLabel}(${params.score} / ${params.total}問正解)</td></tr>
+          </table>
+        `,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error(`通知メールの送信に失敗しました(${res.status}): ${text.slice(0, 300)}`);
+    }
+  } catch (e) {
+    console.error("通知メール送信中にエラーが発生しました:", e);
+  }
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")

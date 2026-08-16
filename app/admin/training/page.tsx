@@ -46,6 +46,7 @@ export default function TrainingAdminPage() {
   const [origin, setOrigin] = useState("");
   const [issuingId, setIssuingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedRegisterLink, setCopiedRegisterLink] = useState(false);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -106,6 +107,18 @@ export default function TrainingAdminPage() {
       await navigator.clipboard.writeText(link);
       setCopiedId(id);
       setTimeout(() => setCopiedId((cur) => (cur === id ? null : cur)), 2000);
+    } catch {
+      prompt("このリンクをコピーしてください:", link);
+    }
+  }
+
+  async function copyRegisterLink() {
+    if (!selectedCourseId) return;
+    const link = origin + "/training/register/" + selectedCourseId;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedRegisterLink(true);
+      setTimeout(() => setCopiedRegisterLink(false), 2000);
     } catch {
       prompt("このリンクをコピーしてください:", link);
     }
@@ -194,6 +207,18 @@ export default function TrainingAdminPage() {
                 {selectedCourse.description}
               </p>
             )}
+          </div>
+
+          <div className="section">
+            <div className="card">
+              <p style={{ fontWeight: 600, marginBottom: 4 }}>自己登録用リンク</p>
+              <p className="text-muted" style={{ marginBottom: 12, fontSize: 13 }}>
+                このリンクを対象者に共有すると、個別に招待を発行しなくても本人が氏名・メールアドレス(@alpha-fp.comのみ)を登録して自分で受験を開始できます。
+              </p>
+              <button onClick={copyRegisterLink} className="btn btn-outline btn-sm">
+                {copiedRegisterLink ? "コピーしました" : "自己登録リンクをコピー"}
+              </button>
+            </div>
           </div>
 
           <div className="section" style={{ marginBottom: 0 }}>
