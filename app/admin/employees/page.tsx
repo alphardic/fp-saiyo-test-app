@@ -321,9 +321,14 @@ export default function EmployeesPage() {
             <h1 style={{ marginTop: 8 }}>社員管理</h1>
             <p>社員の基本情報とMBTIを登録します。総合レポートで使用します。</p>
           </div>
-          <a href="/admin/employees/network" className="btn btn-outline btn-sm" style={{ marginTop: 8 }}>
-            相性の相関図
-          </a>
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <a href="/admin/training" className="btn btn-outline btn-sm">
+              分野別社内テスト
+            </a>
+            <a href="/admin/employees/network" className="btn btn-outline btn-sm">
+              相性の相関図
+            </a>
+          </div>
         </div>
       </div>
 

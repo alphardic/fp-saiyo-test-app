@@ -503,6 +503,9 @@ export default function AdminDashboardPage() {
             <a href="/admin/employees" className="btn btn-outline btn-sm">
               社員管理
             </a>
+            <a href="/admin/training" className="btn btn-outline btn-sm">
+              分野別社内テスト
+            </a>
             {myRole === "super_admin" && (
               <a href="/admin/admins" className="btn btn-outline btn-sm">
                 管理者管理
