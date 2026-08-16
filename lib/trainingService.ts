@@ -197,8 +197,20 @@ export async function startTrainingAttempt(token: string) {
   };
 }
 
+export interface ReviewItem {
+  id: string;
+  group_label: string;
+  question: string;
+  choices: string[];
+  employeeAnswer: string | null;
+  correctAnswer: string;
+  isCorrect: boolean;
+  explanation: string;
+}
+
 /**
  * 進行中の受験を採点・提出する。正答率がPASS_RATIO以上の場合に合格。
+ * 採点結果とあわせて、この画面でそのまま答え合わせができるようレビュー用データも返す。
  * app/api/training/[token]/submit/route.ts から利用。
  */
 export async function submitTrainingAttempt(
@@ -220,26 +232,49 @@ export async function submitTrainingAttempt(
 
   const { data: questions } = await supabase
     .from("training_questions")
-    .select("id, answer")
+    .select("id, group_label, question, choices, answer, explanation")
     .in("id", attempt.question_ids);
 
-  const answerMap = new Map(questions?.map((q) => [q.id, q.answer]) ?? []);
+  const questionMap = new Map((questions ?? []).map((q) => [q.id, q]));
   const inputMap = new Map(answersInput.map((a) => [a.questionId, a.answer]));
 
   let correctCount = 0;
   const total = attempt.question_ids.length;
 
-  const rows = attempt.question_ids.map((questionId: string) => {
+  const rows: {
+    attempt_id: string;
+    question_id: string;
+    employee_answer: string | null;
+    is_correct: boolean;
+  }[] = [];
+  const items: ReviewItem[] = [];
+
+  for (const questionId of attempt.question_ids as string[]) {
+    const q = questionMap.get(questionId);
     const employeeAnswer = inputMap.get(questionId) ?? null;
-    const isCorrect = employeeAnswer !== null && employeeAnswer === answerMap.get(questionId);
+    const isCorrect = employeeAnswer !== null && employeeAnswer === q?.answer;
     if (isCorrect) correctCount += 1;
-    return {
+
+    rows.push({
       attempt_id: attempt.id,
       question_id: questionId,
       employee_answer: employeeAnswer,
       is_correct: isCorrect,
-    };
-  });
+    });
+
+    if (q) {
+      items.push({
+        id: q.id,
+        group_label: q.group_label,
+        question: q.question,
+        choices: q.choices,
+        employeeAnswer,
+        correctAnswer: q.answer,
+        isCorrect,
+        explanation: q.explanation,
+      });
+    }
+  }
 
   if (rows.length > 0) {
     await supabase.from("training_answers").upsert(rows, { onConflict: "attempt_id,question_id" });
@@ -258,5 +293,63 @@ export async function submitTrainingAttempt(
     })
     .eq("id", attempt.id);
 
-  return { score: correctCount, total, passed };
+  return { attemptId: attempt.id as string, score: correctCount, total, passed, items };
+}
+
+/**
+ * 提出済みの受験(過去の分も含む)について、正解・自分の回答・解説を答え合わせできる形で返す。
+ * app/api/training/[token]/review/[attemptId]/route.ts から利用。
+ */
+export async function getAttemptReview(token: string, attemptId: string) {
+  const { supabase, enrollment } = await loadEnrollment(token);
+
+  const { data: attempt, error: attemptError } = await supabase
+    .from("training_attempts")
+    .select("id, status, question_ids, score, total, passed")
+    .eq("id", attemptId)
+    .eq("enrollment_id", enrollment.id)
+    .maybeSingle();
+
+  if (attemptError || !attempt || attempt.status !== "submitted") {
+    throw new TrainingAccessError("採点結果が見つかりません。", 404);
+  }
+
+  const [{ data: questions }, { data: answers }] = await Promise.all([
+    supabase
+      .from("training_questions")
+      .select("id, group_label, question, choices, answer, explanation")
+      .in("id", attempt.question_ids),
+    supabase
+      .from("training_answers")
+      .select("question_id, employee_answer, is_correct")
+      .eq("attempt_id", attempt.id),
+  ]);
+
+  const questionMap = new Map((questions ?? []).map((q) => [q.id, q]));
+  const answerMap = new Map((answers ?? []).map((a) => [a.question_id, a]));
+
+  const items: ReviewItem[] = (attempt.question_ids as string[])
+    .map((id) => {
+      const q = questionMap.get(id);
+      const a = answerMap.get(id);
+      if (!q) return null;
+      return {
+        id: q.id,
+        group_label: q.group_label,
+        question: q.question,
+        choices: q.choices,
+        employeeAnswer: a?.employee_answer ?? null,
+        correctAnswer: q.answer,
+        isCorrect: a?.is_correct ?? false,
+        explanation: q.explanation,
+      };
+    })
+    .filter((item): item is ReviewItem => item !== null);
+
+  return {
+    score: attempt.score ?? 0,
+    total: attempt.total ?? items.length,
+    passed: attempt.passed ?? false,
+    items,
+  };
 }
