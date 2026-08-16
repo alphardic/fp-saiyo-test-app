@@ -213,7 +213,7 @@ export default function TrainingAdminPage() {
             <div className="card">
               <p style={{ fontWeight: 600, marginBottom: 4 }}>自己登録用リンク</p>
               <p className="text-muted" style={{ marginBottom: 12, fontSize: 13 }}>
-                このリンクを対象者に共有すると、個別に招待を発行しなくても本人が氏名・メールアドレス(@alpha-fp.comのみ)を登録して自分で受験を開始できます。
+                このリンクを対象者に共有すると、個別に招待を発行しなくても本人が氏名・メールアドレス(@alpha-fp.com または @peoples-connect.comのみ)を登録して自分で受験を開始できます。
               </p>
               <button onClick={copyRegisterLink} className="btn btn-outline btn-sm">
                 {copiedRegisterLink ? "コピーしました" : "自己登録リンクをコピー"}

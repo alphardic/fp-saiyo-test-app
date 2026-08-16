@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
-const ALLOWED_EMAIL_DOMAIN = "alpha-fp.com";
+const ALLOWED_EMAIL_DOMAINS = ["alpha-fp.com", "peoples-connect.com"];
 
 /**
  * POST /api/training/register
@@ -28,9 +28,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "メールアドレスの形式が正しくありません。" }, { status: 400 });
   }
 
-  if (!email.endsWith("@" + ALLOWED_EMAIL_DOMAIN)) {
+  const isAllowedDomain = ALLOWED_EMAIL_DOMAINS.some((domain) => email.endsWith("@" + domain));
+  if (!isAllowedDomain) {
     return NextResponse.json(
-      { error: `@${ALLOWED_EMAIL_DOMAIN} のメールアドレスのみ登録できます。` },
+      {
+        error: `${ALLOWED_EMAIL_DOMAINS.map((d) => "@" + d).join(" または ")} のメールアドレスのみ登録できます。`,
+      },
       { status: 403 }
     );
   }

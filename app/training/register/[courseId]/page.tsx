@@ -102,7 +102,7 @@ export default function TrainingRegisterPage() {
           />
         </div>
         <div className="field" style={{ marginBottom: 16 }}>
-          <label htmlFor="reg-email">メールアドレス(@alpha-fp.com)</label>
+          <label htmlFor="reg-email">メールアドレス(@alpha-fp.com または @peoples-connect.com)</label>
           <input
             id="reg-email"
             type="email"
