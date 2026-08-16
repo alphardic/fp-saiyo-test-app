@@ -99,6 +99,7 @@ export default function TrainingExamPage() {
     setReview(null);
     setAnswers({});
     setQuestions(data.questions ?? []);
+    window.scrollTo(0, 0);
   }
 
   function setAnswer(questionId: string, value: string) {
@@ -138,6 +139,7 @@ export default function TrainingExamPage() {
     setReview(data.items ?? null);
     setQuestions(null);
     await load();
+    window.scrollTo(0, 0);
   }
 
   async function loadReview(attemptId: string) {
