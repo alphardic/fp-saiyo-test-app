@@ -823,7 +823,17 @@ export default function AdminDashboardPage() {
                             onChange={() => toggleSelect(c.id)}
                           />
                         </td>
-                        <td style={{ padding: "8px 12px", fontWeight: 500 }}>{c.name}</td>
+                        <td style={{ padding: "8px 12px", fontWeight: 500 }}>
+                          {c.name}
+                          {c.hired_employee_id && (
+                            <span
+                              className="badge badge-done"
+                              style={{ marginLeft: 8, verticalAlign: "middle" }}
+                            >
+                              入社済み
+                            </span>
+                          )}
+                        </td>
                         <td className="text-muted" style={{ padding: "8px 12px", fontSize: 12 }}>
                           {attrText}
                         </td>
