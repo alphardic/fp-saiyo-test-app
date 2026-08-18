@@ -14,7 +14,9 @@ export async function GET(req: NextRequest) {
 
   const { data: employees, error } = await supabase
     .from("employees")
-    .select("id, name, email, department, birthdate, mbti, notes, invited_by, created_at")
+    .select(
+      "id, name, email, department, position, manager_id, birthdate, mbti, notes, suitable_roles, suitable_roles_generated_at, assigned_post_id, invited_by, created_at"
+    )
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -64,6 +66,8 @@ export async function POST(req: NextRequest) {
     name?: string;
     email?: string | null;
     department?: string | null;
+    position?: string | null;
+    manager_id?: string | null;
     birthdate?: string | null;
     mbti?: string | null;
     notes?: string | null;
@@ -82,12 +86,16 @@ export async function POST(req: NextRequest) {
       name,
       email: body.email || null,
       department: body.department || null,
+      position: body.position || null,
+      manager_id: body.manager_id || null,
       birthdate: body.birthdate || null,
       mbti: body.mbti || null,
       notes: body.notes || null,
       invited_by: authResult.email,
     })
-    .select("id, name, email, department, birthdate, mbti, notes, invited_by, created_at")
+    .select(
+      "id, name, email, department, position, manager_id, birthdate, mbti, notes, suitable_roles, suitable_roles_generated_at, assigned_post_id, invited_by, created_at"
+    )
     .single();
 
   if (error || !data) {

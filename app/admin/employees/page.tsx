@@ -9,6 +9,8 @@ interface EmployeeRow {
   name: string;
   email: string | null;
   department: string | null;
+  position: string | null;
+  manager_id: string | null;
   birthdate: string | null;
   mbti: string | null;
   notes: string | null;
@@ -80,6 +82,8 @@ export default function EmployeesPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [department, setDepartment] = useState("");
+  const [position, setPosition] = useState("");
+  const [managerId, setManagerId] = useState("");
   const [birthdate, setBirthdate] = useState("");
   const [mbti, setMbti] = useState("");
   const [notes, setNotes] = useState("");
@@ -90,6 +94,8 @@ export default function EmployeesPage() {
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editDepartment, setEditDepartment] = useState("");
+  const [editPosition, setEditPosition] = useState("");
+  const [editManagerId, setEditManagerId] = useState("");
   const [editBirthdate, setEditBirthdate] = useState("");
   const [editMbti, setEditMbti] = useState("");
   const [editNotes, setEditNotes] = useState("");
@@ -128,6 +134,24 @@ export default function EmployeesPage() {
     setLogicCandidates(body.logicCandidates ?? []);
     setLogicSessions(body.logicSessions ?? []);
     setLoading(false);
+  }
+
+  function nameFor(employeeId: string | null) {
+    if (!employeeId) return "-";
+    return employees.find((e) => e.id === employeeId)?.name ?? "-";
+  }
+
+  // 上司の連鎖を辿り、targetId(編集中の本人)に戻ってこないか確認する(循環防止)
+  function wouldCreateCycle(employeeId: string, newManagerId: string): boolean {
+    let currentId: string | null = newManagerId;
+    const visited = new Set<string>();
+    while (currentId) {
+      if (currentId === employeeId) return true;
+      if (visited.has(currentId)) return true;
+      visited.add(currentId);
+      currentId = employees.find((e) => e.id === currentId)?.manager_id ?? null;
+    }
+    return false;
   }
 
   function logicCandidateFor(employeeId: string) {
@@ -197,6 +221,8 @@ export default function EmployeesPage() {
         name: name.trim(),
         email: email || null,
         department: department || null,
+        position: position || null,
+        manager_id: managerId || null,
         birthdate: birthdate || null,
         mbti: mbti || null,
         notes: notes || null,
@@ -211,6 +237,8 @@ export default function EmployeesPage() {
     setName("");
     setEmail("");
     setDepartment("");
+    setPosition("");
+    setManagerId("");
     setBirthdate("");
     setMbti("");
     setNotes("");
@@ -222,6 +250,8 @@ export default function EmployeesPage() {
     setEditName(e.name);
     setEditEmail(e.email ?? "");
     setEditDepartment(e.department ?? "");
+    setEditPosition(e.position ?? "");
+    setEditManagerId(e.manager_id ?? "");
     setEditBirthdate(e.birthdate ?? "");
     setEditMbti(e.mbti ?? "");
     setEditNotes(e.notes ?? "");
@@ -246,6 +276,10 @@ export default function EmployeesPage() {
       alert("生年月日を入力してください(占いの計算に必要です)。");
       return;
     }
+    if (editManagerId && wouldCreateCycle(id, editManagerId)) {
+      alert("この上司を設定すると、上司の連鎖が循環してしまいます。別の人を選んでください。");
+      return;
+    }
     setSavingEdit(true);
     const res = await fetch(`/api/admin/employees/${id}`, {
       method: "PATCH",
@@ -254,6 +288,8 @@ export default function EmployeesPage() {
         name: editName.trim(),
         email: editEmail || null,
         department: editDepartment || null,
+        position: editPosition || null,
+        manager_id: editManagerId || null,
         birthdate: editBirthdate || null,
         mbti: editMbti || null,
         notes: editNotes || null,
@@ -328,6 +364,12 @@ export default function EmployeesPage() {
             <a href="/admin/employees/network" className="btn btn-outline btn-sm">
               相性の相関図
             </a>
+            <a href="/admin/employees/org-chart" className="btn btn-outline btn-sm">
+              組織図
+            </a>
+            <a href="/admin/employees/assignment" className="btn btn-outline btn-sm">
+              配属シミュレーション
+            </a>
           </div>
         </div>
       </div>
@@ -368,6 +410,29 @@ export default function EmployeesPage() {
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
               />
+            </div>
+          </div>
+          <div className="form-row" style={{ marginBottom: 16 }}>
+            <div className="field">
+              <label htmlFor="emp-position">役職(任意)</label>
+              <input
+                id="emp-position"
+                type="text"
+                placeholder="課長"
+                value={position}
+                onChange={(e) => setPosition(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="emp-manager">上司(任意)</label>
+              <select id="emp-manager" value={managerId} onChange={(e) => setManagerId(e.target.value)}>
+                <option value="">未選択</option>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
           <div className="form-row" style={{ marginBottom: 16 }}>
@@ -421,6 +486,8 @@ export default function EmployeesPage() {
                 <tr>
                   <th>氏名</th>
                   <th>部署</th>
+                  <th>役職</th>
+                  <th>上司</th>
                   <th>生年月日</th>
                   <th>MBTI</th>
                   <th>ロジカルテスト</th>
@@ -440,7 +507,7 @@ export default function EmployeesPage() {
                             style={{ width: 100 }}
                           />
                         </td>
-                        <td colSpan={5}>
+                        <td colSpan={7}>
                           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                             <input
                               type="email"
@@ -456,6 +523,26 @@ export default function EmployeesPage() {
                               onChange={(ev) => setEditDepartment(ev.target.value)}
                               style={{ width: 100 }}
                             />
+                            <input
+                              type="text"
+                              placeholder="役職"
+                              value={editPosition}
+                              onChange={(ev) => setEditPosition(ev.target.value)}
+                              style={{ width: 90 }}
+                            />
+                            <select
+                              value={editManagerId}
+                              onChange={(ev) => setEditManagerId(ev.target.value)}
+                            >
+                              <option value="">上司未選択</option>
+                              {employees
+                                .filter((other) => other.id !== e.id)
+                                .map((other) => (
+                                  <option key={other.id} value={other.id}>
+                                    {other.name}
+                                  </option>
+                                ))}
+                            </select>
                             <input
                               type="date"
                               value={editBirthdate}
@@ -495,6 +582,8 @@ export default function EmployeesPage() {
                     <tr key={e.id}>
                       <td style={{ fontWeight: 500 }}>{e.name}</td>
                       <td className="text-muted">{e.department || "-"}</td>
+                      <td className="text-muted">{e.position || "-"}</td>
+                      <td className="text-muted">{nameFor(e.manager_id)}</td>
                       <td className="text-muted">{formatDate(e.birthdate)}</td>
                       <td className="text-muted">{e.mbti ? formatMbti(e.mbti) : "-"}</td>
                       <td style={{ whiteSpace: "nowrap" }}>

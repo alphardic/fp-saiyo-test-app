@@ -243,7 +243,7 @@ export interface ComprehensiveReport {
 }
 
 // 社内の職種区分(適性職種の判定に使う)
-const JOB_ROLES = [
+export const JOB_ROLES = [
   "開拓",
   "FP",
   "保険販売",

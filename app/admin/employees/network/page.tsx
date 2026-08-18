@@ -48,6 +48,7 @@ const LEGEND_ITEMS = [
 export default function EmployeeNetworkPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const networkRef = useRef<any>(null);
+  const nodesDataRef = useRef<any>(null);
   const edgesDataRef = useRef<any>(null);
   const pairScoresRef = useRef<
     Map<string, { overall: number; mbti: number; kyusei: number; rokusei: number; a: string; b: string }>
@@ -59,6 +60,7 @@ export default function EmployeeNetworkPage() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("overall");
   const [threshold, setThreshold] = useState<number>(DEFAULT_THRESHOLD);
+  const [centerId, setCenterId] = useState<string>("");
   const [ready, setReady] = useState(false);
   const [nameById, setNameById] = useState<Record<string, string>>({});
 
@@ -146,8 +148,9 @@ export default function EmployeeNetworkPage() {
           color: { background: "#c9a24b", border: "#8a6d2f" },
         }))
       );
+      nodesDataRef.current = nodes;
 
-      const edges = new DataSet(buildEdges(pairScores, mode, threshold));
+      const edges = new DataSet(buildEdges(pairScores, mode, threshold, centerId));
       edgesDataRef.current = edges;
 
       const network = new Network(
@@ -184,23 +187,45 @@ export default function EmployeeNetworkPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, error, employees]);
 
-  // モード・しきい値切り替え時: 既存のedgesデータセットだけ更新(グラフの再構築はしない)
+  // モード・しきい値・中心人物切り替え時: 既存のedgesデータセットだけ更新(グラフの再構築はしない)
   useEffect(() => {
     if (!ready || !edgesDataRef.current) return;
-    const newEdges = buildEdges(pairScoresRef.current, mode, threshold);
+    const newEdges = buildEdges(pairScoresRef.current, mode, threshold, centerId);
     edgesDataRef.current.clear();
     edgesDataRef.current.add(newEdges);
-  }, [mode, threshold, ready]);
+  }, [mode, threshold, centerId, ready]);
+
+  // 中心人物のノード強調・フォーカス
+  useEffect(() => {
+    if (!ready || !nodesDataRef.current) return;
+    const nodes = nodesDataRef.current;
+    const allIds: string[] = nodes.getIds();
+    allIds.forEach((id) => {
+      const isCenter = centerId && id === centerId;
+      nodes.update({
+        id,
+        size: isCenter ? 30 : 20,
+        color: isCenter
+          ? { background: "#c0392b", border: "#7b241c" }
+          : { background: "#c9a24b", border: "#8a6d2f" },
+      });
+    });
+    if (centerId && networkRef.current) {
+      networkRef.current.focus(centerId, { scale: 1.1, animation: { duration: 400 } });
+    }
+  }, [centerId, ready]);
 
   function buildEdges(
     pairScores: Map<string, { overall: number; mbti: number; kyusei: number; rokusei: number; a: string; b: string }>,
     m: Mode,
-    minScore: number
+    minScore: number,
+    center: string
   ) {
     const result: any[] = [];
     pairScores.forEach((s) => {
       const score = s[m];
       if (score < minScore) return;
+      if (center && s.a !== center && s.b !== center) return;
       result.push({
         from: s.a,
         to: s.b,
@@ -211,6 +236,10 @@ export default function EmployeeNetworkPage() {
     });
     return result;
   }
+
+  const visiblePairs = Array.from(pairScoresRef.current.values())
+    .filter((s) => !centerId || s.a === centerId || s.b === centerId)
+    .sort((x, y) => y[mode] - x[mode]);
 
   return (
     <main className="page page-wide">
@@ -257,6 +286,24 @@ export default function EmployeeNetworkPage() {
                 </button>
               ))}
             </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <span className="text-muted" style={{ fontSize: 13 }}>
+                中心人物:
+              </span>
+              <select value={centerId} onChange={(e) => setCenterId(e.target.value)}>
+                <option value="">全員表示</option>
+                {Object.entries(nameById).map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              {centerId && (
+                <button onClick={() => setCenterId("")} className="btn btn-outline btn-sm">
+                  解除
+                </button>
+              )}
+            </div>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12 }}>
               {LEGEND_ITEMS.map((item) => (
                 <span key={item.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -290,7 +337,11 @@ export default function EmployeeNetworkPage() {
           <div className="section" style={{ marginBottom: 0 }}>
             <div className="section-title">
               <span className="dot" />
-              <h2>相性スコア一覧(全ペア・{MODE_LABELS[mode]})</h2>
+              <h2>
+                {centerId
+                  ? `${nameById[centerId] ?? "?"}さんとの相性(${MODE_LABELS[mode]})`
+                  : `相性スコア一覧(全ペア・${MODE_LABELS[mode]})`}
+              </h2>
             </div>
             <div className="card" style={{ padding: 0 }}>
               <div className="table-wrap" style={{ border: "none" }}>
@@ -303,30 +354,28 @@ export default function EmployeeNetworkPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {Array.from(pairScoresRef.current.values())
-                      .sort((x, y) => y[mode] - x[mode])
-                      .map((s, i) => (
-                        <tr key={i}>
-                          <td style={{ padding: "8px 12px" }}>
-                            {nameById[s.a] ?? "?"} ⇔ {nameById[s.b] ?? "?"}
-                          </td>
-                          <td style={{ padding: "8px 12px", fontWeight: 600 }}>{s[mode]}点</td>
-                          <td style={{ padding: "8px 12px" }}>
-                            <span
-                              style={{
-                                display: "inline-block",
-                                width: 10,
-                                height: 10,
-                                borderRadius: "50%",
-                                background: scoreColor(s[mode]),
-                                marginRight: 6,
-                                verticalAlign: "middle",
-                              }}
-                            />
-                            {scoreLabel(s[mode])}
-                          </td>
-                        </tr>
-                      ))}
+                    {visiblePairs.map((s, i) => (
+                      <tr key={i}>
+                        <td style={{ padding: "8px 12px" }}>
+                          {nameById[s.a] ?? "?"} ⇔ {nameById[s.b] ?? "?"}
+                        </td>
+                        <td style={{ padding: "8px 12px", fontWeight: 600 }}>{s[mode]}点</td>
+                        <td style={{ padding: "8px 12px" }}>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              width: 10,
+                              height: 10,
+                              borderRadius: "50%",
+                              background: scoreColor(s[mode]),
+                              marginRight: 6,
+                              verticalAlign: "middle",
+                            }}
+                          />
+                          {scoreLabel(s[mode])}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
