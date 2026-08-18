@@ -24,7 +24,8 @@ const MODE_LABELS: Record<Mode, string> = {
 };
 
 // スコアがこの値以上のペアだけ線を表示する(全部表示すると見づらいため)
-const SCORE_THRESHOLD = 60;
+const THRESHOLD_OPTIONS = [60, 70, 80] as const;
+const DEFAULT_THRESHOLD = 70;
 
 function scoreColor(score: number): string {
   if (score >= 80) return "#2f9e44"; // 濃い緑: とても良い
@@ -57,6 +58,7 @@ export default function EmployeeNetworkPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("overall");
+  const [threshold, setThreshold] = useState<number>(DEFAULT_THRESHOLD);
   const [ready, setReady] = useState(false);
   const [nameById, setNameById] = useState<Record<string, string>>({});
 
@@ -139,13 +141,13 @@ export default function EmployeeNetworkPage() {
           id: p.id,
           label: p.name,
           shape: "dot",
-          size: 18,
-          font: { size: 14 },
+          size: 20,
+          font: { size: 15, strokeWidth: 5, strokeColor: "#ffffff", vadjust: -26 },
           color: { background: "#c9a24b", border: "#8a6d2f" },
         }))
       );
 
-      const edges = new DataSet(buildEdges(pairScores, mode));
+      const edges = new DataSet(buildEdges(pairScores, mode, threshold));
       edgesDataRef.current = edges;
 
       const network = new Network(
@@ -155,12 +157,15 @@ export default function EmployeeNetworkPage() {
           nodes: { borderWidth: 2 },
           edges: {
             smooth: { enabled: true, type: "continuous", roundness: 0.2 },
-            font: { size: 13, strokeWidth: 4, strokeColor: "#ffffff", align: "middle" },
           },
           physics: {
             solver: "forceAtlas2Based",
-            forceAtlas2Based: { gravitationalConstant: -60, springLength: 140 },
-            stabilization: { iterations: 150 },
+            forceAtlas2Based: {
+              gravitationalConstant: -90,
+              springLength: 220,
+              avoidOverlap: 1,
+            },
+            stabilization: { iterations: 200 },
           },
           interaction: { hover: true },
         }
@@ -179,26 +184,26 @@ export default function EmployeeNetworkPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, error, employees]);
 
-  // モード切り替え時: 既存のedgesデータセットだけ更新(グラフの再構築はしない)
+  // モード・しきい値切り替え時: 既存のedgesデータセットだけ更新(グラフの再構築はしない)
   useEffect(() => {
     if (!ready || !edgesDataRef.current) return;
-    const newEdges = buildEdges(pairScoresRef.current, mode);
+    const newEdges = buildEdges(pairScoresRef.current, mode, threshold);
     edgesDataRef.current.clear();
     edgesDataRef.current.add(newEdges);
-  }, [mode, ready]);
+  }, [mode, threshold, ready]);
 
   function buildEdges(
     pairScores: Map<string, { overall: number; mbti: number; kyusei: number; rokusei: number; a: string; b: string }>,
-    m: Mode
+    m: Mode,
+    minScore: number
   ) {
     const result: any[] = [];
     pairScores.forEach((s) => {
       const score = s[m];
-      if (score < SCORE_THRESHOLD) return;
+      if (score < minScore) return;
       result.push({
         from: s.a,
         to: s.b,
-        label: String(score),
         width: Math.max(1, (score - 50) / 8),
         color: { color: scoreColor(score), opacity: 0.85 },
         title: `${MODE_LABELS[m]}相性: ${score}点(${scoreLabel(score)})`,
@@ -217,7 +222,7 @@ export default function EmployeeNetworkPage() {
         <p>
           MBTI・九星気学・六星占術の一般的な傾向に基づく、社員間の相性の参考値です。
           点数が高いほど相性が良い傾向があるという参考値で、断定的な診断ではありません。
-          スコア{SCORE_THRESHOLD}点未満のペアは図に線を出していません。
+          線が多いと見づらいため、下の「表示する相性」で絞り込めます。正確な点数は図の線にカーソルを合わせるか、下の一覧表で確認できます。
         </p>
       </div>
 
@@ -238,6 +243,20 @@ export default function EmployeeNetworkPage() {
                 </button>
               ))}
             </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <span className="text-muted" style={{ fontSize: 13 }}>
+                表示する相性:
+              </span>
+              {THRESHOLD_OPTIONS.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setThreshold(t)}
+                  className={threshold === t ? "btn btn-primary btn-sm" : "btn btn-outline btn-sm"}
+                >
+                  {t}点以上
+                </button>
+              ))}
+            </div>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12 }}>
               {LEGEND_ITEMS.map((item) => (
                 <span key={item.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -253,7 +272,7 @@ export default function EmployeeNetworkPage() {
                   {item.label}
                 </span>
               ))}
-              <span className="text-muted">線の上の数字がスコア(0〜100点)です</span>
+              <span className="text-muted">線にカーソルを合わせると点数が表示されます</span>
             </div>
           </div>
 
