@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { getKyuseiKigaku, getRokuseiSenjutsu } from "@/lib/fortune";
 import { computeCompatibility, CompatibilityProfile } from "@/lib/compatibility";
-import { JOB_ROLES, RoleFitEntry } from "@/lib/aiGrading";
+import type { RoleFitEntry, TeamAnalysis } from "@/lib/aiGrading";
 
 interface EmployeeRow {
   id: string;
@@ -13,14 +13,17 @@ interface EmployeeRow {
   birthdate: string | null;
   mbti: string | null;
   suitable_roles: RoleFitEntry[] | null;
-  assigned_post_id: string | null;
+  team_id: string | null;
+  is_team_leader: boolean;
 }
 
-interface PostRow {
+interface TeamRow {
   id: string;
-  title: string;
+  name: string;
   department: string | null;
-  role_category: string | null;
+  goal: string | null;
+  ai_analysis: TeamAnalysis | null;
+  ai_analysis_generated_at: string | null;
   created_at: string;
 }
 
@@ -41,24 +44,30 @@ function scoreColor(score: number): string {
 
 export default function AssignmentPage() {
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
-  const [posts, setPosts] = useState<PostRow[]>([]);
+  const [teams, setTeams] = useState<TeamRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [title, setTitle] = useState("");
+  const [name, setName] = useState("");
   const [department, setDepartment] = useState("");
-  const [roleCategory, setRoleCategory] = useState("");
+  const [goal, setGoal] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
-  const [editingPostId, setEditingPostId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
   const [editDepartment, setEditDepartment] = useState("");
-  const [editRoleCategory, setEditRoleCategory] = useState("");
+  const [editGoal, setEditGoal] = useState("");
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverPostId, setDragOverPostId] = useState<string | null>(null);
+  const [dragOverTeamId, setDragOverTeamId] = useState<string | null>(null);
   const [dragOverPool, setDragOverPool] = useState(false);
+
+  const [analyzingTeamId, setAnalyzingTeamId] = useState<string | null>(null);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+
+  const [generating, setGenerating] = useState(false);
+  const [genProgress, setGenProgress] = useState<{ done: number; total: number } | null>(null);
 
   async function getAccessToken(): Promise<string | null> {
     const { data } = await supabaseBrowser.auth.getSession();
@@ -75,16 +84,16 @@ export default function AssignmentPage() {
       return;
     }
     try {
-      const [empRes, postRes] = await Promise.all([
+      const [empRes, teamRes] = await Promise.all([
         fetch("/api/admin/employees", { headers: { Authorization: "Bearer " + token } }),
-        fetch("/api/admin/org-posts", { headers: { Authorization: "Bearer " + token } }),
+        fetch("/api/admin/teams", { headers: { Authorization: "Bearer " + token } }),
       ]);
       const empJson = await empRes.json();
       if (!empRes.ok) throw new Error(empJson.error || "社員データの取得に失敗しました。");
-      const postJson = await postRes.json();
-      if (!postRes.ok) throw new Error(postJson.error || "ポストデータの取得に失敗しました。");
+      const teamJson = await teamRes.json();
+      if (!teamRes.ok) throw new Error(teamJson.error || "チームデータの取得に失敗しました。");
       setEmployees(empJson.employees ?? []);
-      setPosts(postJson.posts ?? []);
+      setTeams(teamJson.teams ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "エラーが発生しました。");
     } finally {
@@ -96,22 +105,22 @@ export default function AssignmentPage() {
     load();
   }, []);
 
-  async function handleAddPost() {
+  async function handleAddTeam() {
     setAddError(null);
-    if (!title.trim()) {
-      setAddError("タイトルを入力してください。");
+    if (!name.trim()) {
+      setAddError("チーム名を入力してください。");
       return;
     }
     const token = await getAccessToken();
     if (!token) return;
     setAdding(true);
-    const res = await fetch("/api/admin/org-posts", {
+    const res = await fetch("/api/admin/teams", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
       body: JSON.stringify({
-        title: title.trim(),
+        name: name.trim(),
         department: department || null,
-        role_category: roleCategory || null,
+        goal: goal || null,
       }),
     });
     setAdding(false);
@@ -120,33 +129,33 @@ export default function AssignmentPage() {
       setAddError(body.error || "登録に失敗しました。");
       return;
     }
-    setTitle("");
+    setName("");
     setDepartment("");
-    setRoleCategory("");
+    setGoal("");
     await load();
   }
 
-  function startEditPost(p: PostRow) {
-    setEditingPostId(p.id);
-    setEditTitle(p.title);
-    setEditDepartment(p.department ?? "");
-    setEditRoleCategory(p.role_category ?? "");
+  function startEditTeam(t: TeamRow) {
+    setEditingTeamId(t.id);
+    setEditName(t.name);
+    setEditDepartment(t.department ?? "");
+    setEditGoal(t.goal ?? "");
   }
 
-  async function saveEditPost(id: string) {
-    if (!editTitle.trim()) {
-      alert("タイトルを入力してください。");
+  async function saveEditTeam(id: string) {
+    if (!editName.trim()) {
+      alert("チーム名を入力してください。");
       return;
     }
     const token = await getAccessToken();
     if (!token) return;
-    const res = await fetch(`/api/admin/org-posts/${id}`, {
+    const res = await fetch(`/api/admin/teams/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
       body: JSON.stringify({
-        title: editTitle.trim(),
+        name: editName.trim(),
         department: editDepartment || null,
-        role_category: editRoleCategory || null,
+        goal: editGoal || null,
       }),
     });
     if (!res.ok) {
@@ -154,15 +163,15 @@ export default function AssignmentPage() {
       alert(body.error || "更新に失敗しました。");
       return;
     }
-    setEditingPostId(null);
+    setEditingTeamId(null);
     await load();
   }
 
-  async function deletePost(p: PostRow) {
-    if (!confirm(`「${p.title}」を削除します。よろしいですか？`)) return;
+  async function deleteTeam(t: TeamRow) {
+    if (!confirm(`「${t.name}」を削除します。よろしいですか？`)) return;
     const token = await getAccessToken();
     if (!token) return;
-    const res = await fetch(`/api/admin/org-posts/${p.id}`, {
+    const res = await fetch(`/api/admin/teams/${t.id}`, {
       method: "DELETE",
       headers: { Authorization: "Bearer " + token },
     });
@@ -174,35 +183,75 @@ export default function AssignmentPage() {
     await load();
   }
 
-  async function assignTo(employeeId: string, postId: string | null) {
+  async function assignTo(employeeId: string, teamId: string | null, isLeader = false) {
     const token = await getAccessToken();
     if (!token) return;
-    const res = await fetch(`/api/admin/employees/${employeeId}/assign-post`, {
+    const res = await fetch(`/api/admin/employees/${employeeId}/team`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-      body: JSON.stringify({ postId }),
+      body: JSON.stringify({ teamId, isLeader }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       alert(body.error || "配属の更新に失敗しました。");
       return;
     }
-    setEmployees((prev) =>
-      prev.map((e) => (e.id === employeeId ? { ...e, assigned_post_id: postId } : e))
-    );
+    await load();
   }
 
-  function handleDrop(postId: string | null) {
-    setDragOverPostId(null);
+  function handleDrop(teamId: string | null) {
+    setDragOverTeamId(null);
     setDragOverPool(false);
     if (!draggingId) return;
     const employeeId = draggingId;
     setDraggingId(null);
-    assignTo(employeeId, postId);
+    assignTo(employeeId, teamId, false);
   }
 
-  function employeeForPost(postId: string) {
-    return employees.find((e) => e.assigned_post_id === postId);
+  async function analyzeTeam(teamId: string) {
+    setAnalyzeError(null);
+    const token = await getAccessToken();
+    if (!token) return;
+    setAnalyzingTeamId(teamId);
+    const res = await fetch(`/api/admin/teams/${teamId}/analyze`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+    });
+    setAnalyzingTeamId(null);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setAnalyzeError(body.error || "分析に失敗しました。");
+      return;
+    }
+    await load();
+  }
+
+  async function bulkGenerateSuitableRoles() {
+    const token = await getAccessToken();
+    if (!token) return;
+    const targets = employees.filter((e) => !e.suitable_roles && e.mbti && e.birthdate);
+    if (targets.length === 0) return;
+    setGenerating(true);
+    setGenProgress({ done: 0, total: targets.length });
+    for (let i = 0; i < targets.length; i++) {
+      try {
+        await fetch(`/api/admin/employees/${targets[i].id}/suitable-roles`, {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token },
+        });
+      } catch {
+        // 1人分の失敗は無視して続行する
+      }
+      setGenProgress({ done: i + 1, total: targets.length });
+    }
+    setGenerating(false);
+    await load();
+  }
+
+  function membersOf(teamId: string) {
+    return employees
+      .filter((e) => e.team_id === teamId)
+      .sort((a, b) => Number(b.is_team_leader) - Number(a.is_team_leader));
   }
 
   function profileFor(e: EmployeeRow): CompatibilityProfile | null {
@@ -214,25 +263,15 @@ export default function AssignmentPage() {
     return { mbti: e.mbti, kyuseiStar, rokusei };
   }
 
-  // ホバー中のポストに、ドラッグ中の社員を置いた場合の参考情報(適性★・部署内の相性)
-  function renderDragHint(post: PostRow) {
+  // ホバー中のチームに、ドラッグ中の社員を加えた場合の参考情報(適性★上位・チーム内の相性)
+  function renderDragHint(team: TeamRow) {
     if (!draggingId) return null;
     const dragged = employees.find((e) => e.id === draggingId);
     if (!dragged) return null;
 
-    const starEntry =
-      post.role_category && dragged.suitable_roles
-        ? dragged.suitable_roles.find((r) => r.role === post.role_category)
-        : null;
-
+    const topRoles = (dragged.suitable_roles ?? []).slice(0, 3);
     const draggedProfile = profileFor(dragged);
-    const deptMates = post.department
-      ? employees.filter((e) => {
-          if (e.id === dragged.id || !e.assigned_post_id) return false;
-          const theirPost = posts.find((p) => p.id === e.assigned_post_id);
-          return theirPost?.department === post.department;
-        })
-      : [];
+    const currentMembers = membersOf(team.id).filter((m) => m.id !== dragged.id);
 
     return (
       <div
@@ -245,22 +284,23 @@ export default function AssignmentPage() {
           fontSize: 12,
         }}
       >
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>{dragged.name} さんを配属した場合</div>
-        {post.role_category ? (
-          starEntry ? (
-            <div>
-              {post.role_category}適性: <StarRating stars={starEntry.stars} />
-            </div>
-          ) : (
-            <div className="text-muted">適性職種が未生成です(社員詳細ページで生成できます)</div>
-          )
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>{dragged.name} さんを加えた場合</div>
+        {topRoles.length > 0 ? (
+          <div>
+            適性職種(上位):{" "}
+            {topRoles.map((r) => (
+              <span key={r.role} style={{ marginRight: 8 }}>
+                {r.role} <StarRating stars={r.stars} />
+              </span>
+            ))}
+          </div>
         ) : (
-          <div className="text-muted">このポストには職種区分が設定されていません</div>
+          <div className="text-muted">適性職種が未生成です</div>
         )}
-        {deptMates.length > 0 && draggedProfile && (
+        {currentMembers.length > 0 && draggedProfile && (
           <div style={{ marginTop: 4 }}>
-            部署内の相性:
-            {deptMates.map((mate) => {
+            既存メンバーとの相性:
+            {currentMembers.map((mate) => {
               const mateProfile = profileFor(mate);
               if (!mateProfile) return null;
               const score = computeCompatibility(draggedProfile, mateProfile).overall;
@@ -277,7 +317,10 @@ export default function AssignmentPage() {
     );
   }
 
-  const unassigned = employees.filter((e) => !e.assigned_post_id);
+  const unassigned = employees.filter((e) => !e.team_id);
+  const missingRolesCount = employees.filter(
+    (e) => !e.suitable_roles && e.mbti && e.birthdate
+  ).length;
 
   if (loading) {
     return (
@@ -310,77 +353,79 @@ export default function AssignmentPage() {
         </a>
         <h1 style={{ marginTop: 8 }}>配属シミュレーション</h1>
         <p>
-          ポストを登録し、未配属の社員をドラッグ&ドロップで配属してみましょう。ポストにカーソルを合わせたまま重ねると、適性職種の★評価と部署内の相性の参考値が表示されます。
+          チームを登録し、リーダー・メンバーをドラッグ&ドロップで配属しましょう。メンバーが揃ったら「AIでチーム分析」で、相性・強み・目標達成へのアドバイスを生成できます。
         </p>
       </div>
 
       <div className="section">
         <div className="section-title">
           <span className="dot" />
-          <h2>ポストの登録</h2>
+          <h2>チームの登録</h2>
         </div>
         <div className="card">
           <div className="form-row" style={{ marginBottom: 16 }}>
             <div className="field">
-              <label htmlFor="post-title">タイトル</label>
+              <label htmlFor="team-name">チーム名</label>
               <input
-                id="post-title"
+                id="team-name"
                 type="text"
-                placeholder="営業部 課長"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                placeholder="営業第一チーム"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
               />
             </div>
             <div className="field">
-              <label htmlFor="post-department">部署(任意)</label>
+              <label htmlFor="team-department">部署(任意)</label>
               <input
-                id="post-department"
+                id="team-department"
                 type="text"
                 placeholder="営業部"
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
               />
             </div>
-            <div className="field">
-              <label htmlFor="post-role">職種区分(任意)</label>
-              <select id="post-role" value={roleCategory} onChange={(e) => setRoleCategory(e.target.value)}>
-                <option value="">未選択</option>
-                {JOB_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
+          </div>
+          <div className="form-row" style={{ marginBottom: 16 }}>
+            <div className="field" style={{ flex: 1 }}>
+              <label htmlFor="team-goal">チームの役割・目標(任意)</label>
+              <input
+                id="team-goal"
+                type="text"
+                placeholder="新規開拓の強化と紹介案件の獲得"
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                style={{ width: "100%" }}
+              />
             </div>
-            <button onClick={handleAddPost} disabled={adding} className="btn btn-primary">
-              {adding ? "登録中..." : "ポストを追加"}
+            <button onClick={handleAddTeam} disabled={adding} className="btn btn-primary">
+              {adding ? "登録中..." : "チームを追加"}
             </button>
           </div>
           {addError && <div className="alert alert-error" style={{ marginBottom: 0 }}>{addError}</div>}
 
-          {posts.length > 0 && (
+          {teams.length > 0 && (
             <div className="table-wrap" style={{ marginTop: 16 }}>
               <table className="table">
                 <thead>
                   <tr>
-                    <th>タイトル</th>
+                    <th>チーム名</th>
                     <th>部署</th>
-                    <th>職種区分</th>
-                    <th>配属中</th>
+                    <th>目標・役割</th>
+                    <th>人数</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {posts.map((p) => {
-                    if (editingPostId === p.id) {
+                  {teams.map((t) => {
+                    if (editingTeamId === t.id) {
                       return (
-                        <tr key={p.id}>
+                        <tr key={t.id}>
                           <td colSpan={5}>
                             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                               <input
                                 type="text"
-                                value={editTitle}
-                                onChange={(ev) => setEditTitle(ev.target.value)}
+                                value={editName}
+                                onChange={(ev) => setEditName(ev.target.value)}
                                 style={{ width: 140 }}
                               />
                               <input
@@ -390,21 +435,17 @@ export default function AssignmentPage() {
                                 onChange={(ev) => setEditDepartment(ev.target.value)}
                                 style={{ width: 100 }}
                               />
-                              <select
-                                value={editRoleCategory}
-                                onChange={(ev) => setEditRoleCategory(ev.target.value)}
-                              >
-                                <option value="">職種区分未選択</option>
-                                {JOB_ROLES.map((r) => (
-                                  <option key={r} value={r}>
-                                    {r}
-                                  </option>
-                                ))}
-                              </select>
-                              <button onClick={() => saveEditPost(p.id)} className="btn btn-primary btn-sm">
+                              <input
+                                type="text"
+                                placeholder="目標・役割"
+                                value={editGoal}
+                                onChange={(ev) => setEditGoal(ev.target.value)}
+                                style={{ width: 220 }}
+                              />
+                              <button onClick={() => saveEditTeam(t.id)} className="btn btn-primary btn-sm">
                                 保存
                               </button>
-                              <button onClick={() => setEditingPostId(null)} className="btn btn-outline btn-sm">
+                              <button onClick={() => setEditingTeamId(null)} className="btn btn-outline btn-sm">
                                 キャンセル
                               </button>
                             </div>
@@ -412,19 +453,20 @@ export default function AssignmentPage() {
                         </tr>
                       );
                     }
-                    const occupant = employeeForPost(p.id);
                     return (
-                      <tr key={p.id}>
-                        <td style={{ fontWeight: 500 }}>{p.title}</td>
-                        <td className="text-muted">{p.department || "-"}</td>
-                        <td className="text-muted">{p.role_category || "-"}</td>
-                        <td className="text-muted">{occupant ? occupant.name : "空き"}</td>
+                      <tr key={t.id}>
+                        <td style={{ fontWeight: 500 }}>{t.name}</td>
+                        <td className="text-muted">{t.department || "-"}</td>
+                        <td className="text-muted" style={{ fontSize: 12 }}>
+                          {t.goal || "-"}
+                        </td>
+                        <td className="text-muted">{membersOf(t.id).length}名</td>
                         <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                          <button onClick={() => startEditPost(p)} className="btn btn-outline btn-sm">
+                          <button onClick={() => startEditTeam(t)} className="btn btn-outline btn-sm">
                             編集
                           </button>
                           <button
-                            onClick={() => deletePost(p)}
+                            onClick={() => deleteTeam(t)}
                             className="btn btn-outline btn-sm"
                             style={{ marginLeft: 4, color: "var(--color-error)" }}
                           >
@@ -464,6 +506,23 @@ export default function AssignmentPage() {
             }}
           >
             <div style={{ fontWeight: 600, marginBottom: 8 }}>未配属({unassigned.length}名)</div>
+            {missingRolesCount > 0 && (
+              <div style={{ marginBottom: 8 }}>
+                <button
+                  onClick={bulkGenerateSuitableRoles}
+                  disabled={generating}
+                  className="btn btn-outline btn-sm"
+                  style={{ width: "100%" }}
+                >
+                  {generating
+                    ? `生成中... ${genProgress?.done ?? 0}/${genProgress?.total ?? 0}`
+                    : `適性職種を一括生成(${missingRolesCount}名)`}
+                </button>
+                <div className="text-muted" style={{ fontSize: 11, marginTop: 4 }}>
+                  AI生成のため数十秒〜数分かかります。
+                </div>
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {unassigned.map((e) => (
                 <div
@@ -487,50 +546,121 @@ export default function AssignmentPage() {
           </div>
 
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", flex: 1 }}>
-            {posts.map((p) => {
-              const occupant = employeeForPost(p.id);
+            {teams.map((t) => {
+              const members = membersOf(t.id);
+              const analysis = t.ai_analysis;
               return (
                 <div
-                  key={p.id}
+                  key={t.id}
                   onDragOver={(e) => {
                     e.preventDefault();
-                    setDragOverPostId(p.id);
+                    setDragOverTeamId(t.id);
                   }}
-                  onDragLeave={() => setDragOverPostId((cur) => (cur === p.id ? null : cur))}
-                  onDrop={() => handleDrop(p.id)}
+                  onDragLeave={() => setDragOverTeamId((cur) => (cur === t.id ? null : cur))}
+                  onDrop={() => handleDrop(t.id)}
                   className="card"
                   style={{
-                    width: 260,
-                    minHeight: 140,
-                    border: dragOverPostId === p.id ? "2px dashed #c9a24b" : undefined,
+                    width: 320,
+                    minHeight: 160,
+                    border: dragOverTeamId === t.id ? "2px dashed #c9a24b" : undefined,
                   }}
                 >
-                  <div style={{ fontWeight: 600 }}>{p.title}</div>
-                  <div className="text-muted" style={{ fontSize: 12, marginBottom: 8 }}>
-                    {[p.department, p.role_category].filter(Boolean).join(" / ") || "部署・職種区分未設定"}
+                  <div style={{ fontWeight: 600 }}>{t.name}</div>
+                  <div className="text-muted" style={{ fontSize: 12, marginBottom: 4 }}>
+                    {t.department || "部署未設定"}
                   </div>
-                  {occupant ? (
-                    <div
-                      draggable
-                      onDragStart={() => setDraggingId(occupant.id)}
-                      onDragEnd={() => setDraggingId(null)}
-                      className="badge badge-done"
-                      style={{ cursor: "grab" }}
-                    >
-                      {occupant.name}
-                    </div>
-                  ) : (
-                    <div className="text-muted" style={{ fontSize: 12 }}>
-                      ここに社員をドラッグして配属
+                  {t.goal && (
+                    <div className="text-muted" style={{ fontSize: 12, marginBottom: 8 }}>
+                      目標: {t.goal}
                     </div>
                   )}
-                  {dragOverPostId === p.id && renderDragHint(p)}
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
+                    {members.map((m) => (
+                      <div
+                        key={m.id}
+                        draggable
+                        onDragStart={() => setDraggingId(m.id)}
+                        onDragEnd={() => setDraggingId(null)}
+                        className={m.is_team_leader ? "badge badge-done" : "badge badge-muted"}
+                        style={{ cursor: "grab", justifyContent: "space-between" }}
+                      >
+                        <span>
+                          {m.is_team_leader ? "★ " : ""}
+                          {m.name}
+                        </span>
+                        {!m.is_team_leader && (
+                          <button
+                            onClick={() => assignTo(m.id, t.id, true)}
+                            className="btn btn-outline btn-sm"
+                            style={{ padding: "0 6px", fontSize: 11, marginLeft: 6 }}
+                          >
+                            リーダーにする
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {members.length === 0 && (
+                      <div className="text-muted" style={{ fontSize: 12 }}>
+                        ここに社員をドラッグして配属
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => analyzeTeam(t.id)}
+                    disabled={members.length === 0 || analyzingTeamId === t.id}
+                    className="btn btn-gold btn-sm"
+                    style={{ width: "100%", marginBottom: 8 }}
+                  >
+                    {analyzingTeamId === t.id ? "分析中..." : "AIでチーム分析"}
+                  </button>
+                  {analyzeError && analyzingTeamId === null && (
+                    <div className="alert alert-error" style={{ fontSize: 12, marginBottom: 8 }}>
+                      {analyzeError}
+                    </div>
+                  )}
+
+                  {analysis && (
+                    <div style={{ fontSize: 12, background: "#f8fafc", borderRadius: 6, padding: 8 }}>
+                      {t.ai_analysis_generated_at && (
+                        <div className="text-muted" style={{ marginBottom: 6 }}>
+                          分析日時: {new Date(t.ai_analysis_generated_at).toLocaleString("ja-JP")}
+                        </div>
+                      )}
+                      <div style={{ marginBottom: 6 }}>
+                        <strong>相性傾向</strong>
+                        <div>{analysis.overallSummary}</div>
+                      </div>
+                      <div style={{ marginBottom: 6 }}>
+                        <strong>活かせる強み</strong>
+                        <div>{analysis.strengths}</div>
+                      </div>
+                      <div style={{ marginBottom: 6 }}>
+                        <strong>目標達成へのアドバイス</strong>
+                        <div>{analysis.goalAdvice}</div>
+                      </div>
+                      {analysis.memberNotes.length > 0 && (
+                        <div>
+                          <strong>メンバーごとの活かし方</strong>
+                          {analysis.memberNotes.map((n, i) => (
+                            <div key={i} style={{ marginTop: 2 }}>
+                              <span style={{ fontWeight: 600 }}>{n.name}: </span>
+                              {n.note}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {dragOverTeamId === t.id && renderDragHint(t)}
                 </div>
               );
             })}
-            {posts.length === 0 && (
+            {teams.length === 0 && (
               <div className="text-muted" style={{ fontSize: 13 }}>
-                まだポストが登録されていません。上のフォームから登録してください。
+                まだチームが登録されていません。上のフォームから登録してください。
               </div>
             )}
           </div>

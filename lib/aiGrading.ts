@@ -393,3 +393,137 @@ MBTIタイプに言及する際は、必ず「ENTJ(指揮官)」のようにア�
       : [],
   };
 }
+
+export interface TeamMemberInput {
+  name: string;
+  isLeader: boolean;
+  mbti: string | null;
+  kyuseiStar: string | null;
+  rokuseiLabel: string | null;
+  rokuseiReigou: boolean;
+  suitableRoles: RoleFitEntry[] | null;
+}
+
+export interface TeamMemberNote {
+  name: string;
+  note: string;
+}
+
+export interface TeamAnalysis {
+  overallSummary: string;
+  memberNotes: TeamMemberNote[];
+  strengths: string;
+  goalAdvice: string;
+}
+
+/**
+ * チームの目標・メンバー構成(MBTI・占い・適性職種)をもとに、
+ * チームの相性傾向・活かせる強み・目標達成へのアドバイスをAnthropic Claude APIで生成する。
+ */
+export async function generateTeamAnalysis(params: {
+  teamName: string;
+  department: string | null;
+  goal: string | null;
+  members: TeamMemberInput[];
+}): Promise<TeamAnalysis> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY が設定されていません。");
+  }
+
+  const memberLines = params.members
+    .map((m) => {
+      const role = m.isLeader ? "リーダー" : "メンバー";
+      const mbtiText = m.mbti ? formatMbti(m.mbti) : "MBTI未登録";
+      const fortuneText =
+        m.kyuseiStar && m.rokuseiLabel
+          ? `九星気学: ${m.kyuseiStar} / 六星占術: ${m.rokuseiLabel}${m.rokuseiReigou ? "(霊合星人)" : ""}`
+          : "占い情報未登録";
+      const rolesText =
+        m.suitableRoles && m.suitableRoles.length > 0
+          ? "適性職種(上位3): " +
+            m.suitableRoles
+              .slice(0, 3)
+              .map((r) => `${r.role}(★${r.stars})`)
+              .join("、")
+          : "適性職種未生成";
+      return `- ${m.name}(${role}): ${mbtiText} / ${fortuneText} / ${rolesText}`;
+    })
+    .join("\n");
+
+  const prompt = `あなたはFP(ファイナンシャルプランナー)業界の人事・マネジメント向けに、
+チーム編成の相性・強みを分析するAIです。
+
+チーム名: ${params.teamName}
+部署: ${params.department || "未設定"}
+チームの目標・役割: ${params.goal || "未設定"}
+
+メンバー構成:
+${memberLines}
+
+MBTIと占い(九星気学・六星占術)の一般的な傾向、および適性職種の評価を根拠として使い、
+断定しすぎず「傾向がある」「〜しやすい」といったトーンで、日本語で具体的にまとめてください。
+情報が未登録のメンバーについては、その旨を踏まえた上で無理に断定しないでください。
+MBTIタイプに言及する際は、必ず「ENTJ(指揮官)」のようにアルファベット4文字と
+日本語の通称をセットで書いてください。
+
+- overallSummary: チーム全体で見た相性の傾向(強み・注意点)を250字程度で
+- memberNotes: メンバー一人ひとりについて、このチームでの活かし方・リーダーとの関係性の
+  アドバイスを「name」(氏名。上記の表記のまま)と「note」(100字程度)のペアで、
+  メンバー全員分(リーダーも含む)
+- strengths: チームの目標(${params.goal || "未設定"})に対して、このメンバー構成で
+  活かせる強みを200字程度で具体的に
+- goalAdvice: 目標達成に向けて、チーム編成・役割分担上のアドバイスを200字程度で
+
+以下のJSON形式のみを出力してください。それ以外のテキストは一切含めないでください。
+{
+  "overallSummary": "...",
+  "memberNotes": [{"name": "...", "note": "..."}, ...(メンバー全員分)],
+  "strengths": "...",
+  "goalAdvice": "..."
+}`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 2000,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`AIチーム分析APIエラー(${res.status}): ${text.slice(0, 300)}`);
+  }
+
+  const data = (await res.json()) as {
+    content: { type: string; text?: string }[];
+  };
+  const textBlock = data.content?.find((c) => c.type === "text");
+  const raw = textBlock?.text ?? "";
+
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) {
+    throw new Error("AIチーム分析結果の解析に失敗しました: " + raw.slice(0, 200));
+  }
+
+  const parsed = JSON.parse(match[0]) as TeamAnalysis;
+
+  return {
+    overallSummary: applyMbtiNicknamesToText(parsed.overallSummary ?? ""),
+    memberNotes: Array.isArray(parsed.memberNotes)
+      ? parsed.memberNotes.map((m) => ({
+          name: m.name ?? "",
+          note: applyMbtiNicknamesToText(m.note ?? ""),
+        }))
+      : [],
+    strengths: applyMbtiNicknamesToText(parsed.strengths ?? ""),
+    goalAdvice: applyMbtiNicknamesToText(parsed.goalAdvice ?? ""),
+  };
+}

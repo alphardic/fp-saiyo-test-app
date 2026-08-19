@@ -3,9 +3,9 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/adminAuth";
 
 /**
- * POST /api/admin/employees/[id]/assign-post
- * 社員をポストに配属する(postId: null で配属解除)。
- * 1ポストにつき同時に配属できるのは1人まで。
+ * POST /api/admin/employees/[id]/team
+ * 社員をチームに配属する(teamId: null で配属解除)。
+ * isLeader: true の場合、同じチームの他メンバーのリーダーフラグは解除する。
  */
 export async function POST(
   req: NextRequest,
@@ -14,8 +14,9 @@ export async function POST(
   const authResult = await requireAdmin(req);
   if (authResult instanceof NextResponse) return authResult;
 
-  const body = (await req.json()) as { postId?: string | null };
-  const postId = body.postId || null;
+  const body = (await req.json()) as { teamId?: string | null; isLeader?: boolean };
+  const teamId = body.teamId || null;
+  const isLeader = teamId ? !!body.isLeader : false;
 
   const supabase = getSupabaseServerClient();
 
@@ -29,37 +30,31 @@ export async function POST(
     return NextResponse.json({ error: "社員が見つかりません。" }, { status: 404 });
   }
 
-  if (postId) {
-    const { data: post, error: postError } = await supabase
-      .from("org_posts")
+  if (teamId) {
+    const { data: team, error: teamError } = await supabase
+      .from("teams")
       .select("id")
-      .eq("id", postId)
+      .eq("id", teamId)
       .single();
 
-    if (postError || !post) {
-      return NextResponse.json({ error: "ポストが見つかりません。" }, { status: 404 });
+    if (teamError || !team) {
+      return NextResponse.json({ error: "チームが見つかりません。" }, { status: 404 });
     }
 
-    const { data: occupant } = await supabase
-      .from("employees")
-      .select("id")
-      .eq("assigned_post_id", postId)
-      .neq("id", params.id)
-      .maybeSingle();
-
-    if (occupant) {
-      return NextResponse.json(
-        { error: "このポストは既に他の社員が配属されています。" },
-        { status: 400 }
-      );
+    if (isLeader) {
+      await supabase
+        .from("employees")
+        .update({ is_team_leader: false })
+        .eq("team_id", teamId)
+        .neq("id", params.id);
     }
   }
 
   const { data, error } = await supabase
     .from("employees")
-    .update({ assigned_post_id: postId })
+    .update({ team_id: teamId, is_team_leader: isLeader })
     .eq("id", params.id)
-    .select("id, assigned_post_id")
+    .select("id, team_id, is_team_leader")
     .single();
 
   if (error || !data) {

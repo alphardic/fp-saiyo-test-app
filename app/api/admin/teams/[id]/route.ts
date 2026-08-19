@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/adminAuth";
-import { JOB_ROLES } from "@/lib/aiGrading";
 
 /**
- * PATCH /api/admin/org-posts/[id]
- * 配属ポストを編集する。
+ * PATCH /api/admin/teams/[id]
+ * チームの名前・部署・目標を編集する。
  */
 export async function PATCH(
   req: NextRequest,
@@ -15,31 +14,27 @@ export async function PATCH(
   if (authResult instanceof NextResponse) return authResult;
 
   const body = (await req.json()) as {
-    title?: string;
+    name?: string;
     department?: string | null;
-    role_category?: string | null;
+    goal?: string | null;
   };
 
-  const title = body.title?.trim();
-  if (!title) {
-    return NextResponse.json({ error: "タイトルを入力してください。" }, { status: 400 });
-  }
-
-  if (body.role_category && !(JOB_ROLES as readonly string[]).includes(body.role_category)) {
-    return NextResponse.json({ error: "職種区分の値が不正です。" }, { status: 400 });
+  const name = body.name?.trim();
+  if (!name) {
+    return NextResponse.json({ error: "チーム名を入力してください。" }, { status: 400 });
   }
 
   const supabase = getSupabaseServerClient();
 
   const { data, error } = await supabase
-    .from("org_posts")
+    .from("teams")
     .update({
-      title,
+      name,
       department: body.department || null,
-      role_category: body.role_category || null,
+      goal: body.goal || null,
     })
     .eq("id", params.id)
-    .select("id, title, department, role_category, created_at")
+    .select("id, name, department, goal, ai_analysis, ai_analysis_generated_at, created_at")
     .single();
 
   if (error || !data) {
@@ -49,12 +44,12 @@ export async function PATCH(
     );
   }
 
-  return NextResponse.json({ post: data });
+  return NextResponse.json({ team: data });
 }
 
 /**
- * DELETE /api/admin/org-posts/[id]
- * 配属ポストを削除する(配属中の社員は自動的に配属解除される)。
+ * DELETE /api/admin/teams/[id]
+ * チームを削除する(所属していた社員は自動的に未配属に戻る)。
  */
 export async function DELETE(
   req: NextRequest,
@@ -64,7 +59,7 @@ export async function DELETE(
   if (authResult instanceof NextResponse) return authResult;
 
   const supabase = getSupabaseServerClient();
-  const { error } = await supabase.from("org_posts").delete().eq("id", params.id);
+  const { error } = await supabase.from("teams").delete().eq("id", params.id);
 
   if (error) {
     return NextResponse.json({ error: "削除に失敗しました: " + error.message }, { status: 400 });
