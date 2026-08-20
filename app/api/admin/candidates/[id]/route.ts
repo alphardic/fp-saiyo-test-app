@@ -21,6 +21,7 @@ export async function PATCH(
     fpLicense?: string | null;
     fpAffiliation?: string | null;
     birthdate?: string | null;
+    mbti?: string | null;
   };
 
   const ageNumber =
@@ -60,11 +61,14 @@ export async function PATCH(
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  // ロジカルテスト側の氏名・メールも同期する(紐付いている場合)
-  if (trimmedName || trimmedEmail) {
+  // ロジカルテスト側の氏名・メール・MBTIも同期する(紐付いている場合)
+  // MBTIはロジカルテストの必須項目ではなくなったため、候補者が未回答のまま
+  // 提出した場合に備えて、管理画面から後から入力・修正できるようにしている。
+  if (trimmedName || trimmedEmail || body.mbti !== undefined) {
     const logicUpdate: Record<string, unknown> = {};
     if (trimmedName) logicUpdate.name = trimmedName;
     if (trimmedEmail) logicUpdate.email = trimmedEmail;
+    if (body.mbti !== undefined) logicUpdate.mbti = body.mbti || null;
     await supabase.from("logic_candidates").update(logicUpdate).eq("main_candidate_id", params.id);
   }
 
