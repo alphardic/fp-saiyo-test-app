@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       birthdate: body.birthdate || null,
     })
     .select(
-      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation, invited_by, birthdate"
+      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation, invited_by, birthdate, strengths"
     )
     .single();
 

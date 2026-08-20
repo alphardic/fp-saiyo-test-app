@@ -17,14 +17,24 @@ export async function PATCH(
     name?: string;
     email?: string | null;
     department?: string | null;
+    position?: string | null;
+    manager_id?: string | null;
     birthdate?: string | null;
     mbti?: string | null;
     notes?: string | null;
+    strengths?: string[] | null;
   };
 
   const name = body.name?.trim();
   if (!name) {
     return NextResponse.json({ error: "氏名を入力してください。" }, { status: 400 });
+  }
+
+  if (body.manager_id && body.manager_id === params.id) {
+    return NextResponse.json(
+      { error: "自分自身を上司に設定することはできません。" },
+      { status: 400 }
+    );
   }
 
   const supabase = getSupabaseServerClient();
@@ -35,12 +45,17 @@ export async function PATCH(
       name,
       email: body.email || null,
       department: body.department || null,
+      position: body.position || null,
+      manager_id: body.manager_id || null,
       birthdate: body.birthdate || null,
       mbti: body.mbti || null,
       notes: body.notes || null,
+      strengths: body.strengths && body.strengths.length > 0 ? body.strengths : null,
     })
     .eq("id", params.id)
-    .select("id, name, email, department, birthdate, mbti, notes, invited_by, created_at")
+    .select(
+      "id, name, email, department, position, manager_id, birthdate, mbti, notes, strengths, suitable_roles, suitable_roles_generated_at, team_id, is_team_leader, invited_by, created_at"
+    )
     .single();
 
   if (error || !data) {

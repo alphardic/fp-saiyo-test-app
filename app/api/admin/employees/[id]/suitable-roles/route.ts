@@ -5,10 +5,11 @@ import { getKyuseiKigaku, getRokuseiSenjutsu } from "@/lib/fortune";
 import { generateComprehensiveReport } from "@/lib/aiGrading";
 
 /**
- * GET /api/admin/employees/[id]/report
- * 社員のMBTI・九星気学・六星占術をもとに、AIで総合レポートを生成して返す。
+ * POST /api/admin/employees/[id]/suitable-roles
+ * 社員のMBTI・九星気学・六星占術から適性職種(★評価)をAIで生成し、
+ * employees.suitable_roles に保存する(配属シミュレーションで使うためのキャッシュ)。
  */
-export async function GET(
+export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -19,9 +20,7 @@ export async function GET(
 
   const { data: employee, error } = await supabase
     .from("employees")
-    .select(
-      "id, name, email, department, position, manager_id, birthdate, mbti, notes, strengths, suitable_roles, suitable_roles_generated_at, team_id, is_team_leader, invited_by, created_at"
-    )
+    .select("id, name, mbti, birthdate, strengths")
     .eq("id", params.id)
     .single();
 
@@ -31,7 +30,7 @@ export async function GET(
 
   if (!employee.mbti || !employee.birthdate) {
     return NextResponse.json(
-      { error: "MBTIまたは生年月日が未登録のため、レポートを生成できません。" },
+      { error: "MBTIまたは生年月日が未登録のため、適性職種を生成できません。" },
       { status: 400 }
     );
   }
@@ -60,12 +59,29 @@ export async function GET(
       strengths: employee.strengths,
     });
 
-    return NextResponse.json({ employee, kyuseiStar, rokusei, report });
+    const generatedAt = new Date().toISOString();
+
+    const { error: updateError } = await supabase
+      .from("employees")
+      .update({
+        suitable_roles: report.suitableRoles,
+        suitable_roles_generated_at: generatedAt,
+      })
+      .eq("id", params.id);
+
+    if (updateError) {
+      return NextResponse.json(
+        { error: "保存に失敗しました: " + updateError.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ suitableRoles: report.suitableRoles, generatedAt });
   } catch (e) {
     return NextResponse.json(
       {
         error:
-          "レポート生成に失敗しました: " +
+          "適性職種の生成に失敗しました: " +
           (e instanceof Error ? e.message : String(e)),
       },
       { status: 500 }

@@ -42,7 +42,7 @@ export async function POST(
 
   const { data: logicCandidate } = await supabase
     .from("logic_candidates")
-    .select("mbti")
+    .select("id, mbti")
     .eq("main_candidate_id", candidate.id)
     .maybeSingle();
 
@@ -88,6 +88,12 @@ export async function POST(
       { status: 500 }
     );
   }
+
+  // 候補者として受験済みのロジカルテスト結果を、社員としても受験済み扱いにする
+  await supabase
+    .from("logic_candidates")
+    .update({ employee_id: employee.id })
+    .eq("id", logicCandidate.id);
 
   return NextResponse.json({ employee });
 }

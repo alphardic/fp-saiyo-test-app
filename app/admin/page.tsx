@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { formatMbti, MBTI_TYPES } from "@/lib/mbti";
+import { STRENGTHS_DOMAINS } from "@/lib/strengths";
 
 interface SessionRow {
   id: string;
@@ -25,6 +26,7 @@ interface CandidateRow {
   invited_by: string | null;
   birthdate: string | null;
   hired_employee_id: string | null;
+  strengths: string[] | null;
 }
 
 interface LogicCandidateRow {
@@ -77,6 +79,40 @@ function CompactStatus({ dot, text }: { dot: string; text: string }) {
     <span style={{ fontSize: 13, whiteSpace: "nowrap" }}>
       {dot} {text}
     </span>
+  );
+}
+
+function StrengthSelects({
+  values,
+  onChange,
+  idPrefix,
+}: {
+  values: string[];
+  onChange: (index: number, value: string) => void;
+  idPrefix: string;
+}) {
+  return (
+    <>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <select
+          key={i}
+          id={`${idPrefix}-${i}`}
+          value={values[i] ?? ""}
+          onChange={(e) => onChange(i, e.target.value)}
+        >
+          <option value="">資質{i + 1}未選択</option>
+          {STRENGTHS_DOMAINS.map((d) => (
+            <optgroup key={d.domain} label={d.domain}>
+              {d.themes.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      ))}
+    </>
   );
 }
 
@@ -147,6 +183,7 @@ export default function AdminDashboardPage() {
   const [editFpLicense, setEditFpLicense] = useState("");
   const [editFpAffiliation, setEditFpAffiliation] = useState("");
   const [editBirthdate, setEditBirthdate] = useState("");
+  const [editStrengths, setEditStrengths] = useState<string[]>(["", "", "", "", ""]);
   const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
@@ -350,6 +387,8 @@ export default function AdminDashboardPage() {
     setEditFpLicense(c.fp_license ?? "");
     setEditFpAffiliation(c.fp_affiliation ?? "");
     setEditBirthdate(c.birthdate ?? "");
+    const existing = c.strengths ?? [];
+    setEditStrengths([0, 1, 2, 3, 4].map((i) => existing[i] ?? ""));
   }
 
   function cancelEdit() {
@@ -375,6 +414,7 @@ export default function AdminDashboardPage() {
         fpLicense: editFpLicense || null,
         fpAffiliation: editFpAffiliation || null,
         birthdate: editBirthdate || null,
+        strengths: editStrengths.filter(Boolean),
       }),
     });
     setSavingEdit(false);
@@ -837,6 +877,13 @@ export default function AdminDashboardPage() {
                               value={editBirthdate}
                               onChange={(e) => setEditBirthdate(e.target.value)}
                             />
+                            <StrengthSelects
+                              values={editStrengths}
+                              onChange={(i, v) =>
+                                setEditStrengths((prev) => prev.map((p, idx) => (idx === i ? v : p)))
+                              }
+                              idPrefix={`cand-strength-${c.id}`}
+                            />
                             <button
                               onClick={() => saveEdit(c.id)}
                               disabled={savingEdit}
@@ -873,7 +920,22 @@ export default function AdminDashboardPage() {
                             onChange={() => toggleSelect(c.id)}
                           />
                         </td>
-                        <td style={{ padding: "8px 12px", fontWeight: 500 }}>{c.name}</td>
+                        <td style={{ padding: "8px 12px", fontWeight: 500 }}>
+                          {c.name}
+                          {c.hired_employee_id && (
+                            <span
+                              className="badge badge-done"
+                              style={{ marginLeft: 8, verticalAlign: "middle" }}
+                            >
+                              入社済み
+                            </span>
+                          )}
+                          {c.strengths && c.strengths.length > 0 && (
+                            <div className="text-muted" style={{ fontSize: 11, fontWeight: 400 }}>
+                              {c.strengths.join(", ")}
+                            </div>
+                          )}
+                        </td>
                         <td className="text-muted" style={{ padding: "8px 12px", fontSize: 12 }}>
                           {attrText}
                         </td>

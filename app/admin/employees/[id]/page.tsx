@@ -13,6 +13,7 @@ interface Employee {
   birthdate: string | null;
   mbti: string | null;
   notes: string | null;
+  strengths: string[] | null;
   invited_by: string | null;
   created_at: string;
 }
@@ -67,6 +68,9 @@ export default function EmployeeReportPage() {
   const [data, setData] = useState<ReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [savingRoles, setSavingRoles] = useState(false);
+  const [savedRolesAt, setSavedRolesAt] = useState<string | null>(null);
+  const [saveRolesError, setSaveRolesError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,6 +105,27 @@ export default function EmployeeReportPage() {
     };
   }, [params.id]);
 
+  async function saveSuitableRoles() {
+    setSaveRolesError(null);
+    setSavingRoles(true);
+    try {
+      const { data: sessionData } = await supabaseBrowser.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("ログインが必要です。");
+      const res = await fetch(`/api/admin/employees/${params.id}/suitable-roles`, {
+        method: "POST",
+        headers: { Authorization: "Bearer " + accessToken },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "保存に失敗しました。");
+      setSavedRolesAt(json.generatedAt);
+    } catch (e) {
+      setSaveRolesError(e instanceof Error ? e.message : "エラーが発生しました。");
+    } finally {
+      setSavingRoles(false);
+    }
+  }
+
   return (
     <div className="page">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -127,6 +152,16 @@ export default function EmployeeReportPage() {
               {data.rokusei.label}
               {data.rokusei.reigou ? "(霊合星人)" : ""}
             </p>
+            {data.employee.strengths && data.employee.strengths.length > 0 && (
+              <p style={{ marginTop: 8, marginBottom: 0 }}>
+                <span className="text-muted">ストレングスファインダー: </span>
+                {data.employee.strengths.map((s) => (
+                  <span key={s} className="badge" style={{ marginRight: 6 }}>
+                    {s}
+                  </span>
+                ))}
+              </p>
+            )}
           </div>
 
           <div className="section">
@@ -158,7 +193,39 @@ export default function EmployeeReportPage() {
           </div>
 
           <div className="section">
-            <h2 className="section-title">適性がある仕事</h2>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 8,
+              }}
+            >
+              <h2 className="section-title">適性がある仕事</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {savedRolesAt && (
+                  <span className="text-muted" style={{ fontSize: 12 }}>
+                    保存しました({new Date(savedRolesAt).toLocaleString("ja-JP")})
+                  </span>
+                )}
+                <button
+                  onClick={saveSuitableRoles}
+                  disabled={savingRoles}
+                  className="btn btn-outline btn-sm"
+                >
+                  {savingRoles ? "保存中..." : "適性職種を保存する"}
+                </button>
+              </div>
+            </div>
+            {saveRolesError && (
+              <div className="alert alert-error" style={{ marginBottom: 12 }}>
+                {saveRolesError}
+              </div>
+            )}
+            <p className="text-muted" style={{ fontSize: 12, marginTop: -4 }}>
+              保存すると「配属シミュレーション」画面でこの社員の適性★評価を参照できるようになります。
+            </p>
             <div className="card" style={{ padding: 0 }}>
               <div className="table-wrap" style={{ border: "none" }}>
                 <table className="table">
