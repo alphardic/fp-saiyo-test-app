@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { formatMbti } from "@/lib/mbti";
+import { STRENGTHS_DOMAINS } from "@/lib/strengths";
 
 interface EmployeeRow {
   id: string;
@@ -14,6 +15,7 @@ interface EmployeeRow {
   birthdate: string | null;
   mbti: string | null;
   notes: string | null;
+  strengths: string[] | null;
   invited_by: string | null;
   created_at: string;
 }
@@ -69,6 +71,40 @@ function formatDate(iso: string | null) {
   return iso;
 }
 
+function StrengthSelects({
+  values,
+  onChange,
+  idPrefix,
+}: {
+  values: string[];
+  onChange: (index: number, value: string) => void;
+  idPrefix: string;
+}) {
+  return (
+    <>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <select
+          key={i}
+          id={`${idPrefix}-${i}`}
+          value={values[i] ?? ""}
+          onChange={(e) => onChange(i, e.target.value)}
+        >
+          <option value="">資質{i + 1}未選択</option>
+          {STRENGTHS_DOMAINS.map((d) => (
+            <optgroup key={d.domain} label={d.domain}>
+              {d.themes.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      ))}
+    </>
+  );
+}
+
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [logicCandidates, setLogicCandidates] = useState<LogicCandidateRow[]>([]);
@@ -87,6 +123,7 @@ export default function EmployeesPage() {
   const [birthdate, setBirthdate] = useState("");
   const [mbti, setMbti] = useState("");
   const [notes, setNotes] = useState("");
+  const [strengths, setStrengths] = useState<string[]>(["", "", "", "", ""]);
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -99,6 +136,7 @@ export default function EmployeesPage() {
   const [editBirthdate, setEditBirthdate] = useState("");
   const [editMbti, setEditMbti] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [editStrengths, setEditStrengths] = useState<string[]>(["", "", "", "", ""]);
   const [savingEdit, setSavingEdit] = useState(false);
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -226,6 +264,7 @@ export default function EmployeesPage() {
         birthdate: birthdate || null,
         mbti: mbti || null,
         notes: notes || null,
+        strengths: strengths.filter(Boolean),
       }),
     });
     setAdding(false);
@@ -242,6 +281,7 @@ export default function EmployeesPage() {
     setBirthdate("");
     setMbti("");
     setNotes("");
+    setStrengths(["", "", "", "", ""]);
     await load();
   }
 
@@ -255,6 +295,8 @@ export default function EmployeesPage() {
     setEditBirthdate(e.birthdate ?? "");
     setEditMbti(e.mbti ?? "");
     setEditNotes(e.notes ?? "");
+    const existing = e.strengths ?? [];
+    setEditStrengths([0, 1, 2, 3, 4].map((i) => existing[i] ?? ""));
   }
 
   function cancelEdit() {
@@ -293,6 +335,7 @@ export default function EmployeesPage() {
         birthdate: editBirthdate || null,
         mbti: editMbti || null,
         notes: editNotes || null,
+        strengths: editStrengths.filter(Boolean),
       }),
     });
     setSavingEdit(false);
@@ -466,6 +509,20 @@ export default function EmployeesPage() {
                 onChange={(e) => setNotes(e.target.value)}
               />
             </div>
+          </div>
+          <div className="form-row" style={{ marginBottom: 16 }}>
+            <div className="field">
+              <label>ストレングスファインダー 上位5資質(任意)</label>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <StrengthSelects
+                  values={strengths}
+                  onChange={(i, v) =>
+                    setStrengths((prev) => prev.map((p, idx) => (idx === i ? v : p)))
+                  }
+                  idPrefix="emp-strength"
+                />
+              </div>
+            </div>
             <button onClick={handleAdd} disabled={adding} className="btn btn-primary">
               {adding ? "登録中..." : "社員を追加"}
             </button>
@@ -563,6 +620,13 @@ export default function EmployeesPage() {
                               onChange={(ev) => setEditNotes(ev.target.value)}
                               style={{ width: 120 }}
                             />
+                            <StrengthSelects
+                              values={editStrengths}
+                              onChange={(i, v) =>
+                                setEditStrengths((prev) => prev.map((p, idx) => (idx === i ? v : p)))
+                              }
+                              idPrefix={`edit-strength-${e.id}`}
+                            />
                             <button
                               onClick={() => saveEdit(e.id)}
                               disabled={savingEdit}
@@ -580,7 +644,14 @@ export default function EmployeesPage() {
                   }
                   return (
                     <tr key={e.id}>
-                      <td style={{ fontWeight: 500 }}>{e.name}</td>
+                      <td style={{ fontWeight: 500 }}>
+                        {e.name}
+                        {e.strengths && e.strengths.length > 0 && (
+                          <div className="text-muted" style={{ fontSize: 11, fontWeight: 400 }}>
+                            {e.strengths.join(", ")}
+                          </div>
+                        )}
+                      </td>
                       <td className="text-muted">{e.department || "-"}</td>
                       <td className="text-muted">{e.position || "-"}</td>
                       <td className="text-muted">{nameFor(e.manager_id)}</td>

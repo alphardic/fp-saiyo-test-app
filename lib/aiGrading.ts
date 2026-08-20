@@ -270,6 +270,7 @@ export async function generateComprehensiveReport(params: {
   rokuseiReigou: boolean;
   currentYear: number;
   testSummary?: string | null;
+  strengths?: string[] | null;
 }): Promise<ComprehensiveReport> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -279,6 +280,11 @@ export async function generateComprehensiveReport(params: {
   const testSection = params.testSummary
     ? `# 本システムのテスト結果(総評)\n${params.testSummary}\n`
     : "";
+
+  const strengthsLine =
+    params.strengths && params.strengths.length > 0
+      ? `ストレングスファインダー(CliftonStrengths)上位資質: ${params.strengths.join(", ")}\n`
+      : "";
 
   const mbtiWithNickname = formatMbti(params.mbti);
 
@@ -290,13 +296,14 @@ MBTIタイプ: ${mbtiWithNickname}
 九星気学: ${params.kyuseiStar}
 六星占術: ${params.rokuseiLabel}${params.rokuseiReigou ? "(霊合星人)" : ""}
 現在の年: ${params.currentYear}年
-${testSection}
+${strengthsLine}${testSection}
 以下の観点で、日本語で詳しく具体的にまとめてください。MBTIと占い(九星気学・六星占術)の
 一般的な傾向・特徴を根拠として使い、断定しすぎず「傾向がある」「〜しやすい」
 といったトーンで書いてください。相性については、実在する特定の人物と比較する
 のではなく、MBTIタイプや占いのタイプに基づく一般的な相性傾向として述べてください。
 MBTIタイプに言及する際は、必ず「ENTJ(指揮官)」のようにアルファベット4文字と
 日本語の通称をセットで書いてください(通称だけ、コードだけの記載は避けてください)。
+${strengthsLine ? "ストレングスファインダーの上位資質が登録されている場合は、mbtiPersonalityやhowToHandleの中で、その資質が実務のどんな場面で活きるかにも触れてください。\n" : ""}
 抽象的な一般論だけでなく、具体的な行動特性や、実務(FP業務・営業・チーム内での
 役割など)に落とし込んだ記述を心がけてください。
 
@@ -402,6 +409,7 @@ export interface TeamMemberInput {
   rokuseiLabel: string | null;
   rokuseiReigou: boolean;
   suitableRoles: RoleFitEntry[] | null;
+  cliftonStrengths: string[] | null;
 }
 
 export interface TeamMemberNote {
@@ -447,7 +455,11 @@ export async function generateTeamAnalysis(params: {
               .map((r) => `${r.role}(★${r.stars})`)
               .join("、")
           : "適性職種未生成";
-      return `- ${m.name}(${role}): ${mbtiText} / ${fortuneText} / ${rolesText}`;
+      const strengthsText =
+        m.cliftonStrengths && m.cliftonStrengths.length > 0
+          ? "ストレングスファインダー上位資質: " + m.cliftonStrengths.join(", ")
+          : "ストレングスファインダー未登録";
+      return `- ${m.name}(${role}): ${mbtiText} / ${fortuneText} / ${rolesText} / ${strengthsText}`;
     })
     .join("\n");
 
@@ -461,9 +473,12 @@ export async function generateTeamAnalysis(params: {
 メンバー構成:
 ${memberLines}
 
-MBTIと占い(九星気学・六星占術)の一般的な傾向、および適性職種の評価を根拠として使い、
-断定しすぎず「傾向がある」「〜しやすい」といったトーンで、日本語で具体的にまとめてください。
-情報が未登録のメンバーについては、その旨を踏まえた上で無理に断定しないでください。
+MBTIと占い(九星気学・六星占術)の一般的な傾向、適性職種の評価、および(登録されていれば)
+ストレングスファインダーの上位資質を根拠として使い、断定しすぎず「傾向がある」「〜しやすい」
+といったトーンで、日本語で具体的にまとめてください。特に strengths(チームで活かせる強み)
+の項目では、各メンバーのストレングスファインダーの資質が登録されていれば、それを最も重要な
+根拠として使ってください。情報が未登録のメンバーについては、その旨を踏まえた上で無理に断定
+しないでください。
 MBTIタイプに言及する際は、必ず「ENTJ(指揮官)」のようにアルファベット4文字と
 日本語の通称をセットで書いてください。
 

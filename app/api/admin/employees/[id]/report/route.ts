@@ -20,7 +20,7 @@ export async function GET(
   const { data: employee, error } = await supabase
     .from("employees")
     .select(
-      "id, name, email, department, position, manager_id, birthdate, mbti, notes, suitable_roles, suitable_roles_generated_at, team_id, is_team_leader, invited_by, created_at"
+      "id, name, email, department, position, manager_id, birthdate, mbti, notes, strengths, suitable_roles, suitable_roles_generated_at, team_id, is_team_leader, invited_by, created_at"
     )
     .eq("id", params.id)
     .single();
@@ -57,6 +57,7 @@ export async function GET(
       rokuseiLabel: rokusei.label,
       rokuseiReigou: rokusei.reigou,
       currentYear,
+      strengths: employee.strengths,
     });
 
     return NextResponse.json({ employee, kyuseiStar, rokusei, report });

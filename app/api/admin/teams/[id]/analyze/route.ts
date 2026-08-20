@@ -30,7 +30,7 @@ export async function POST(
 
   const { data: members, error: membersError } = await supabase
     .from("employees")
-    .select("name, mbti, birthdate, suitable_roles, is_team_leader")
+    .select("name, mbti, birthdate, suitable_roles, strengths, is_team_leader")
     .eq("team_id", params.id);
 
   if (membersError) {
@@ -65,6 +65,7 @@ export async function POST(
       rokuseiLabel,
       rokuseiReigou,
       suitableRoles: m.suitable_roles,
+      cliftonStrengths: m.strengths,
     };
   });
 

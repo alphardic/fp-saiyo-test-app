@@ -22,6 +22,7 @@ export async function PATCH(
     birthdate?: string | null;
     mbti?: string | null;
     notes?: string | null;
+    strengths?: string[] | null;
   };
 
   const name = body.name?.trim();
@@ -49,10 +50,11 @@ export async function PATCH(
       birthdate: body.birthdate || null,
       mbti: body.mbti || null,
       notes: body.notes || null,
+      strengths: body.strengths && body.strengths.length > 0 ? body.strengths : null,
     })
     .eq("id", params.id)
     .select(
-      "id, name, email, department, position, manager_id, birthdate, mbti, notes, suitable_roles, suitable_roles_generated_at, team_id, is_team_leader, invited_by, created_at"
+      "id, name, email, department, position, manager_id, birthdate, mbti, notes, strengths, suitable_roles, suitable_roles_generated_at, team_id, is_team_leader, invited_by, created_at"
     )
     .single();
 

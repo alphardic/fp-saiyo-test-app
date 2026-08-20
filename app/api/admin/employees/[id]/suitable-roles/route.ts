@@ -20,7 +20,7 @@ export async function POST(
 
   const { data: employee, error } = await supabase
     .from("employees")
-    .select("id, name, mbti, birthdate")
+    .select("id, name, mbti, birthdate, strengths")
     .eq("id", params.id)
     .single();
 
@@ -56,6 +56,7 @@ export async function POST(
       rokuseiLabel: rokusei.label,
       rokuseiReigou: rokusei.reigou,
       currentYear,
+      strengths: employee.strengths,
     });
 
     const generatedAt = new Date().toISOString();

@@ -21,7 +21,7 @@ export async function POST(
 
   const { data: candidate, error: candidateError } = await supabase
     .from("candidates")
-    .select("id, name, birthdate")
+    .select("id, name, birthdate, strengths")
     .eq("id", params.id)
     .single();
 
@@ -75,6 +75,7 @@ export async function POST(
       rokuseiReigou: rokusei.reigou,
       currentYear,
       testSummary: body.testSummary || null,
+      strengths: candidate.strengths,
     });
 
     return NextResponse.json({

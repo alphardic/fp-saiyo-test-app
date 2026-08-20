@@ -99,6 +99,7 @@ export default function CombinedCandidateReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [candidateName, setCandidateName] = useState("");
   const [candidateEmail, setCandidateEmail] = useState("");
+  const [candidateStrengths, setCandidateStrengths] = useState<string[] | null>(null);
   const [mainStatus, setMainStatus] = useState("not_started");
   const [mainSessionId, setMainSessionId] = useState<string | null>(null);
   const [mainReport, setMainReport] = useState<MainReportData | null>(null);
@@ -137,7 +138,8 @@ export default function CombinedCandidateReportPage() {
     }
     const dash = await dashRes.json();
     const candidate = (dash.candidates ?? []).find(
-      (c: { id: string; name: string; email: string }) => c.id === candidateId
+      (c: { id: string; name: string; email: string; strengths: string[] | null }) =>
+        c.id === candidateId
     );
     if (!candidate) {
       setError("候補者が見つかりません。");
@@ -146,6 +148,7 @@ export default function CombinedCandidateReportPage() {
     }
     setCandidateName(candidate.name);
     setCandidateEmail(candidate.email);
+    setCandidateStrengths(candidate.strengths ?? null);
     const session = (dash.sessions ?? []).find(
       (s: { candidate_id: string }) => s.candidate_id === candidateId
     );
@@ -398,6 +401,16 @@ export default function CombinedCandidateReportPage() {
                 {candidateRokusei?.label}
                 {candidateRokusei?.reigou ? "(霊合星人)" : ""}
               </p>
+              {candidateStrengths && candidateStrengths.length > 0 && (
+                <p style={{ marginBottom: 12 }}>
+                  <span className="text-muted">ストレングスファインダー: </span>
+                  {candidateStrengths.map((s) => (
+                    <span key={s} className="badge" style={{ marginRight: 6 }}>
+                      {s}
+                    </span>
+                  ))}
+                </p>
+              )}
               <h3 style={{ marginTop: 0, fontSize: 14 }}>MBTIから見る基本性格</h3>
               <p>{compReport.mbtiPersonality}</p>
               <h3 style={{ fontSize: 14 }}>占いから見る性格・運勢</h3>

@@ -21,6 +21,7 @@ export async function PATCH(
     fpLicense?: string | null;
     fpAffiliation?: string | null;
     birthdate?: string | null;
+    strengths?: string[] | null;
   };
 
   const ageNumber =
@@ -36,6 +37,7 @@ export async function PATCH(
     fp_license: body.fpLicense || null,
     fp_affiliation: body.fpAffiliation || null,
     birthdate: body.birthdate || null,
+    strengths: body.strengths && body.strengths.length > 0 ? body.strengths : null,
   };
 
   const trimmedName = body.name?.trim();
@@ -48,7 +50,7 @@ export async function PATCH(
     .update(updatePayload)
     .eq("id", params.id)
     .select(
-      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation, birthdate"
+      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation, birthdate, strengths"
     )
     .single();
 

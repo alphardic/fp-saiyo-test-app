@@ -13,6 +13,7 @@ interface Employee {
   birthdate: string | null;
   mbti: string | null;
   notes: string | null;
+  strengths: string[] | null;
   invited_by: string | null;
   created_at: string;
 }
@@ -151,6 +152,16 @@ export default function EmployeeReportPage() {
               {data.rokusei.label}
               {data.rokusei.reigou ? "(霊合星人)" : ""}
             </p>
+            {data.employee.strengths && data.employee.strengths.length > 0 && (
+              <p style={{ marginTop: 8, marginBottom: 0 }}>
+                <span className="text-muted">ストレングスファインダー: </span>
+                {data.employee.strengths.map((s) => (
+                  <span key={s} className="badge" style={{ marginRight: 6 }}>
+                    {s}
+                  </span>
+                ))}
+              </p>
+            )}
           </div>
 
           <div className="section">

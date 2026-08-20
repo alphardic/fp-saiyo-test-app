@@ -13,6 +13,7 @@ interface EmployeeRow {
   birthdate: string | null;
   mbti: string | null;
   suitable_roles: RoleFitEntry[] | null;
+  strengths: string[] | null;
   team_id: string | null;
   is_team_leader: boolean;
 }
@@ -297,6 +298,9 @@ export default function AssignmentPage() {
         ) : (
           <div className="text-muted">適性職種が未生成です</div>
         )}
+        {dragged.strengths && dragged.strengths.length > 0 && (
+          <div>資質: {dragged.strengths.join(", ")}</div>
+        )}
         {currentMembers.length > 0 && draggedProfile && (
           <div style={{ marginTop: 4 }}>
             既存メンバーとの相性:
@@ -577,26 +581,32 @@ export default function AssignmentPage() {
 
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
                     {members.map((m) => (
-                      <div
-                        key={m.id}
-                        draggable
-                        onDragStart={() => setDraggingId(m.id)}
-                        onDragEnd={() => setDraggingId(null)}
-                        className={m.is_team_leader ? "badge badge-done" : "badge badge-muted"}
-                        style={{ cursor: "grab", justifyContent: "space-between" }}
-                      >
-                        <span>
-                          {m.is_team_leader ? "★ " : ""}
-                          {m.name}
-                        </span>
-                        {!m.is_team_leader && (
-                          <button
-                            onClick={() => assignTo(m.id, t.id, true)}
-                            className="btn btn-outline btn-sm"
-                            style={{ padding: "0 6px", fontSize: 11, marginLeft: 6 }}
-                          >
-                            リーダーにする
-                          </button>
+                      <div key={m.id}>
+                        <div
+                          draggable
+                          onDragStart={() => setDraggingId(m.id)}
+                          onDragEnd={() => setDraggingId(null)}
+                          className={m.is_team_leader ? "badge badge-done" : "badge badge-muted"}
+                          style={{ cursor: "grab", justifyContent: "space-between" }}
+                        >
+                          <span>
+                            {m.is_team_leader ? "★ " : ""}
+                            {m.name}
+                          </span>
+                          {!m.is_team_leader && (
+                            <button
+                              onClick={() => assignTo(m.id, t.id, true)}
+                              className="btn btn-outline btn-sm"
+                              style={{ padding: "0 6px", fontSize: 11, marginLeft: 6 }}
+                            >
+                              リーダーにする
+                            </button>
+                          )}
+                        </div>
+                        {m.strengths && m.strengths.length > 0 && (
+                          <div className="text-muted" style={{ fontSize: 11, marginLeft: 4 }}>
+                            資質: {m.strengths.join(", ")}
+                          </div>
                         )}
                       </div>
                     ))}
