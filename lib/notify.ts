@@ -103,6 +103,53 @@ export async function sendTrainingResultNotification(params: {
   }
 }
 
+/**
+ * 未受験・受験中のまま止まっている候補者へ、管理画面からのボタン操作で
+ * リマインドメールを送る。管理者が内容・宛先を都度確認したうえで送信する運用のため、
+ * 通知メールと異なり成否をそのまま呼び出し元に返す。
+ */
+export async function sendReminderEmail(params: {
+  candidateName: string;
+  candidateEmail: string;
+  testName: string;
+  examUrl: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    return { ok: false, error: "RESEND_API_KEYが設定されていません。" };
+  }
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        from: "FP業界 入社適性テスト <onboarding@resend.dev>",
+        to: [params.candidateEmail],
+        subject: `【${params.testName}】ご回答のお願い`,
+        html: `
+          <p>${escapeHtml(params.candidateName)} 様</p>
+          <p>お忙しいところ恐れ入ります。まだ${escapeHtml(params.testName)}にご回答いただいていないようでしたので、ご案内いたします。</p>
+          <p>ご回答内容は自動的に保存されますので、途中で中断されても次回は続きからご回答いただけます。</p>
+          <p><a href="${params.examUrl}">${params.examUrl}</a></p>
+          <p>ご不明な点があればお気軽にご連絡ください。</p>
+        `,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return { ok: false, error: `送信に失敗しました(${res.status}): ${text.slice(0, 300)}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "不明なエラーが発生しました。" };
+  }
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")

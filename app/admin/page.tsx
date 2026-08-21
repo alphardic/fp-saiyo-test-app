@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-import { formatMbti } from "@/lib/mbti";
+import { formatMbti, MBTI_TYPES } from "@/lib/mbti";
 import { STRENGTHS_DOMAINS } from "@/lib/strengths";
 
 interface SessionRow {
@@ -175,6 +175,11 @@ export default function AdminDashboardPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [hiringId, setHiringId] = useState<string | null>(null);
   const [hireError, setHireError] = useState<string | null>(null);
+  const [remindingKey, setRemindingKey] = useState<string | null>(null);
+  const [remindResult, setRemindResult] = useState<{ key: string; ok: boolean; message: string } | null>(null);
+  const [editingMbtiId, setEditingMbtiId] = useState<string | null>(null);
+  const [editMbti, setEditMbti] = useState("");
+  const [savingMbti, setSavingMbti] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -538,6 +543,51 @@ export default function AdminDashboardPage() {
 
   function toggleExpand(id: string) {
     setExpandedId((cur) => (cur === id ? null : id));
+  }
+
+  async function sendReminder(candidate: CandidateRow, test: "main" | "logic", url: string) {
+    const key = `${candidate.id}:${test}`;
+    if (!confirm(`${candidate.email} 宛にリマインドメールを送信します。よろしいですか？`)) return;
+    const token = await getAccessToken();
+    if (!token) return;
+    setRemindingKey(key);
+    setRemindResult(null);
+    const res = await fetch(`/api/admin/candidates/${candidate.id}/remind`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify({ test, url }),
+    });
+    setRemindingKey(null);
+    const body = await res.json().catch(() => ({}));
+    setRemindResult({
+      key,
+      ok: res.ok,
+      message: res.ok ? "リマインドメールを送信しました。" : body.error || "送信に失敗しました。",
+    });
+  }
+
+  function startEditMbti(candidateId: string, currentMbti: string | null) {
+    setEditingMbtiId(candidateId);
+    setEditMbti(currentMbti ?? "");
+  }
+
+  async function saveMbti(candidateId: string) {
+    const token = await getAccessToken();
+    if (!token) return;
+    setSavingMbti(true);
+    const res = await fetch(`/api/admin/candidates/${candidateId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify({ mbti: editMbti || null }),
+    });
+    setSavingMbti(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error || "MBTIの更新に失敗しました。");
+      return;
+    }
+    setEditingMbtiId(null);
+    await load();
   }
 
   if (loading) {
@@ -1090,6 +1140,25 @@ export default function AdminDashboardPage() {
                                     詳細レポート
                                   </a>
                                 )}
+                                {(mainStatus === "not_started" || mainStatus === "in_progress") && (
+                                  <button
+                                    onClick={() => sendReminder(c, "main", origin + "/exam/" + c.invite_token)}
+                                    disabled={remindingKey === `${c.id}:main`}
+                                    className="btn btn-outline btn-sm"
+                                  >
+                                    {remindingKey === `${c.id}:main` ? "送信中..." : "リマインドを送る"}
+                                  </button>
+                                )}
+                                {remindResult?.key === `${c.id}:main` && (
+                                  <span
+                                    style={{
+                                      fontSize: 12,
+                                      color: remindResult.ok ? "var(--color-success)" : "var(--color-error)",
+                                    }}
+                                  >
+                                    {remindResult.message}
+                                  </span>
+                                )}
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                                 <span style={{ fontSize: 12, fontWeight: 600, minWidth: 140 }}>
@@ -1124,6 +1193,27 @@ export default function AdminDashboardPage() {
                                         詳細レポート
                                       </a>
                                     )}
+                                    {(logicStatus === "not_started" || logicStatus === "in_progress") && (
+                                      <button
+                                        onClick={() =>
+                                          sendReminder(c, "logic", origin + "/logic-exam/" + lc.invite_token)
+                                        }
+                                        disabled={remindingKey === `${c.id}:logic`}
+                                        className="btn btn-outline btn-sm"
+                                      >
+                                        {remindingKey === `${c.id}:logic` ? "送信中..." : "リマインドを送る"}
+                                      </button>
+                                    )}
+                                    {remindResult?.key === `${c.id}:logic` && (
+                                      <span
+                                        style={{
+                                          fontSize: 12,
+                                          color: remindResult.ok ? "var(--color-success)" : "var(--color-error)",
+                                        }}
+                                      >
+                                        {remindResult.message}
+                                      </span>
+                                    )}
                                   </>
                                 )}
                               </div>
@@ -1156,6 +1246,48 @@ export default function AdminDashboardPage() {
                                   </button>
                                 )}
                               </div>
+                              {lc && (
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                                  <span style={{ fontSize: 12, fontWeight: 600, minWidth: 140 }}>MBTI</span>
+                                  {editingMbtiId === c.id ? (
+                                    <>
+                                      <select value={editMbti} onChange={(e) => setEditMbti(e.target.value)}>
+                                        <option value="">未設定</option>
+                                        {MBTI_TYPES.map((code) => (
+                                          <option key={code} value={code}>
+                                            {formatMbti(code)}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <button
+                                        onClick={() => saveMbti(c.id)}
+                                        disabled={savingMbti}
+                                        className="btn btn-primary btn-sm"
+                                      >
+                                        {savingMbti ? "保存中..." : "保存"}
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingMbtiId(null)}
+                                        className="btn btn-outline btn-sm"
+                                      >
+                                        キャンセル
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span style={{ fontSize: 13 }}>
+                                        {lc.mbti ? formatMbti(lc.mbti) : "未設定(候補者が任意回答のため空欄の場合あり)"}
+                                      </span>
+                                      <button
+                                        onClick={() => startEditMbti(c.id, lc.mbti)}
+                                        className="btn btn-outline btn-sm"
+                                      >
+                                        編集
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </td>
                         </tr>

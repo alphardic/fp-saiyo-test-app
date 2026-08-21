@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
+// 候補者ごとに毎回最新の回答状況を返す必要があるため、
+// Next.jsのRoute Handlerのデフォルトキャッシュを無効化する
+// (無効化しないと、自動保存した回答が再読み込み時に反映されないことがある)。
+export const dynamic = "force-dynamic";
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { token: string } }
