@@ -27,6 +27,7 @@ interface CandidateRow {
   birthdate: string | null;
   hired_employee_id: string | null;
   strengths: string[] | null;
+  strengths_requested_at: string | null;
 }
 
 interface LogicCandidateRow {
@@ -73,6 +74,18 @@ const LOGIC_STATUS_TEXT: Record<string, string> = {
   in_progress: "受験中",
   completed: "採点済",
 };
+
+const STRENGTHS_STATUS_DOT: Record<string, string> = {
+  not_requested: "⚫",
+  requested: "🟡",
+  done: "🟢",
+};
+const STRENGTHS_STATUS_TEXT: Record<string, string> = {
+  not_requested: "未依頼",
+  requested: "依頼済み・未受験",
+  done: "受験済み",
+};
+const GALLUP_URL = "https://www.gallup.com/cliftonstrengths";
 
 function CompactStatus({ dot, text }: { dot: string; text: string }) {
   return (
@@ -155,6 +168,7 @@ export default function AdminDashboardPage() {
   const [origin, setOrigin] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedLogicId, setCopiedLogicId] = useState<string | null>(null);
+  const [copiedStrengthsId, setCopiedStrengthsId] = useState<string | null>(null);
   const [issuingLogicId, setIssuingLogicId] = useState<string | null>(null);
   const [gradingId, setGradingId] = useState<string | null>(null);
   const [gradeError, setGradeError] = useState<string | null>(null);
@@ -481,6 +495,24 @@ export default function AdminDashboardPage() {
     } catch {
       prompt("このリンクをコピーしてください:", link);
     }
+  }
+
+  async function copyStrengthsRequest(c: CandidateRow) {
+    const text = `${c.name} 様\n\nストレングスファインダー(CliftonStrengths)の受検をお願いします。\n下記のGallup公式サイトから受検し、結果(上位5つの資質)を人事担当までご連絡ください。\n\n${GALLUP_URL}`;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      prompt("この内容をコピーしてください:", text);
+    }
+    setCopiedStrengthsId(c.id);
+    setTimeout(() => setCopiedStrengthsId((cur) => (cur === c.id ? null : cur)), 2000);
+    const token = await getAccessToken();
+    if (!token) return;
+    await fetch(`/api/admin/candidates/${c.id}/strengths-request`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+    });
+    await load();
   }
 
   async function issueLogicInvite(candidateId: string) {
@@ -1093,6 +1125,35 @@ export default function AdminDashboardPage() {
                                       </a>
                                     )}
                                   </>
+                                )}
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, minWidth: 140 }}>
+                                  ストレングスファインダー
+                                </span>
+                                <CompactStatus
+                                  dot={
+                                    c.strengths && c.strengths.length > 0
+                                      ? STRENGTHS_STATUS_DOT.done
+                                      : c.strengths_requested_at
+                                      ? STRENGTHS_STATUS_DOT.requested
+                                      : STRENGTHS_STATUS_DOT.not_requested
+                                  }
+                                  text={
+                                    c.strengths && c.strengths.length > 0
+                                      ? STRENGTHS_STATUS_TEXT.done
+                                      : c.strengths_requested_at
+                                      ? STRENGTHS_STATUS_TEXT.requested
+                                      : STRENGTHS_STATUS_TEXT.not_requested
+                                  }
+                                />
+                                {!(c.strengths && c.strengths.length > 0) && (
+                                  <button
+                                    onClick={() => copyStrengthsRequest(c)}
+                                    className="btn btn-outline btn-sm"
+                                  >
+                                    {copiedStrengthsId === c.id ? "コピーしました" : "受検依頼をコピー"}
+                                  </button>
                                 )}
                               </div>
                             </div>

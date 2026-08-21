@@ -54,7 +54,7 @@ export async function PATCH(
     })
     .eq("id", params.id)
     .select(
-      "id, name, email, department, position, manager_id, birthdate, mbti, notes, strengths, suitable_roles, suitable_roles_generated_at, team_id, is_team_leader, invited_by, created_at"
+      "id, name, email, department, position, manager_id, birthdate, mbti, notes, strengths, strengths_requested_at, suitable_roles, suitable_roles_generated_at, team_id, is_team_leader, invited_by, created_at"
     )
     .single();
 

@@ -6,4 +6,5 @@ node_modules
 .env
 .env.local
 .env*.local
-.dev.varstsconfig.tsbuildinfo
+.dev.vars
+tsconfig.tsbuildinfo

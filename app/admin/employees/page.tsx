@@ -16,6 +16,7 @@ interface EmployeeRow {
   mbti: string | null;
   notes: string | null;
   strengths: string[] | null;
+  strengths_requested_at: string | null;
   invited_by: string | null;
   created_at: string;
 }
@@ -46,6 +47,18 @@ const LOGIC_STATUS_TEXT: Record<string, string> = {
   in_progress: "受験中",
   completed: "採点済",
 };
+
+const STRENGTHS_STATUS_DOT: Record<string, string> = {
+  not_requested: "⚫",
+  requested: "🟡",
+  done: "🟢",
+};
+const STRENGTHS_STATUS_TEXT: Record<string, string> = {
+  not_requested: "未依頼",
+  requested: "依頼済み・未受験",
+  done: "受験済み",
+};
+const GALLUP_URL = "https://www.gallup.com/cliftonstrengths";
 
 const MBTI_TYPES = [
   { code: "INTJ", name: "建築家" },
@@ -114,6 +127,7 @@ export default function EmployeesPage() {
   const [origin, setOrigin] = useState("");
   const [issuingLogicId, setIssuingLogicId] = useState<string | null>(null);
   const [copiedLogicId, setCopiedLogicId] = useState<string | null>(null);
+  const [copiedStrengthsId, setCopiedStrengthsId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -230,6 +244,24 @@ export default function EmployeesPage() {
     if (body.logicInviteToken) {
       await copyLogicLink(employeeId, body.logicInviteToken);
     }
+  }
+
+  async function copyStrengthsRequest(e: EmployeeRow) {
+    const text = `${e.name} 様\n\nストレングスファインダー(CliftonStrengths)の受検をお願いします。\n下記のGallup公式サイトから受検し、結果(上位5つの資質)を人事担当までご連絡ください。\n\n${GALLUP_URL}`;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      prompt("この内容をコピーしてください:", text);
+    }
+    setCopiedStrengthsId(e.id);
+    setTimeout(() => setCopiedStrengthsId((cur) => (cur === e.id ? null : cur)), 2000);
+    const token = await getAccessToken();
+    if (!token) return;
+    await fetch(`/api/admin/employees/${e.id}/strengths-request`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+    });
+    await load();
   }
 
   async function handleAdd() {
@@ -646,9 +678,27 @@ export default function EmployeesPage() {
                     <tr key={e.id}>
                       <td style={{ fontWeight: 500 }}>
                         {e.name}
-                        {e.strengths && e.strengths.length > 0 && (
+                        {e.strengths && e.strengths.length > 0 ? (
                           <div className="text-muted" style={{ fontSize: 11, fontWeight: 400 }}>
                             {e.strengths.join(", ")}
+                          </div>
+                        ) : (
+                          <div style={{ fontWeight: 400, marginTop: 2 }}>
+                            <span style={{ fontSize: 11 }}>
+                              {e.strengths_requested_at
+                                ? STRENGTHS_STATUS_DOT.requested
+                                : STRENGTHS_STATUS_DOT.not_requested}{" "}
+                              {e.strengths_requested_at
+                                ? STRENGTHS_STATUS_TEXT.requested
+                                : STRENGTHS_STATUS_TEXT.not_requested}
+                            </span>
+                            <button
+                              onClick={() => copyStrengthsRequest(e)}
+                              className="btn btn-outline btn-sm"
+                              style={{ marginLeft: 6, padding: "0 6px", fontSize: 11 }}
+                            >
+                              {copiedStrengthsId === e.id ? "コピーしました" : "受検依頼をコピー"}
+                            </button>
                           </div>
                         )}
                       </td>

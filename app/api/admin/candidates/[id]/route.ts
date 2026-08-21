@@ -50,7 +50,7 @@ export async function PATCH(
     .update(updatePayload)
     .eq("id", params.id)
     .select(
-      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation, birthdate, strengths"
+      "id, name, email, invite_token, created_at, age, fp_experience, fp_license, fp_affiliation, birthdate, strengths, strengths_requested_at"
     )
     .single();
 
