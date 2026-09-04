@@ -47,6 +47,7 @@ export default function TrainingAdminPage() {
   const [issuingId, setIssuingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedRegisterLink, setCopiedRegisterLink] = useState(false);
+  const [showUninvited, setShowUninvited] = useState(false);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -100,6 +101,14 @@ export default function TrainingAdminPage() {
       return { employee: e, enrollment, attemptCount: employeeAttempts.length, passed, latest };
     });
   }, [employees, enrollments, attempts, selectedCourseId]);
+
+  const enrolledRows = useMemo(() => rows.filter((r) => r.enrollment), [rows]);
+  const uninvitedRows = useMemo(() => rows.filter((r) => !r.enrollment), [rows]);
+  const passedCount = enrolledRows.filter((r) => r.passed).length;
+  const failedCount = enrolledRows.filter((r) => !r.passed && r.attemptCount > 0).length;
+  const notAttemptedCount = enrolledRows.filter(
+    (r) => !r.passed && r.attemptCount === 0
+  ).length;
 
   async function copyLink(id: string, token: string) {
     const link = origin + "/training/" + token;
@@ -221,72 +230,144 @@ export default function TrainingAdminPage() {
             </div>
           </div>
 
-          <div className="section" style={{ marginBottom: 0 }}>
-            <div className="section-title">
-              <span className="dot" />
-              <h2>社員別の受講状況</h2>
+          {rows.length === 0 ? (
+            <div className="card">
+              <p className="text-muted" style={{ marginBottom: 0 }}>
+                社員が登録されていません。
+              </p>
             </div>
-            <div className="card" style={{ padding: 0 }}>
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>氏名</th>
-                      <th>部署</th>
-                      <th>合否</th>
-                      <th>受験回数</th>
-                      <th>直近スコア</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map(({ employee, enrollment, attemptCount, passed, latest }) => (
-                      <tr key={employee.id}>
-                        <td style={{ fontWeight: 500 }}>{employee.name}</td>
-                        <td className="text-muted">{employee.department || "-"}</td>
-                        <td>
-                          {!enrollment ? (
-                            <span className="text-muted">未招待</span>
-                          ) : passed ? (
-                            <span style={{ color: "var(--color-success, #1a7f37)" }}>🟢 合格</span>
-                          ) : attemptCount > 0 ? (
-                            <span style={{ color: "var(--color-error)" }}>🔴 不合格</span>
-                          ) : (
-                            <span className="text-muted">⚪ 未受験</span>
-                          )}
-                        </td>
-                        <td className="text-muted">{attemptCount}回</td>
-                        <td className="text-muted">
-                          {latest ? `${latest.score} / ${latest.total}` : "-"}
-                        </td>
-                        <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                          {!enrollment ? (
-                            <button
-                              onClick={() => issueInvite(employee.id)}
-                              disabled={issuingId === employee.id}
-                              className="btn btn-outline btn-sm"
-                            >
-                              {issuingId === employee.id ? "発行中..." : "招待を発行"}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => copyLink(employee.id, enrollment.invite_token)}
-                              className="btn btn-outline btn-sm"
-                            >
-                              {copiedId === employee.id ? "コピーしました" : "リンクをコピー"}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {rows.length === 0 && (
-                  <div className="table-empty">社員が登録されていません。</div>
+          ) : (
+            <>
+              <div className="section" style={{ marginBottom: 0 }}>
+                <div className="section-title">
+                  <span className="dot" />
+                  <h2>受講対象者</h2>
+                </div>
+
+                {enrolledRows.length === 0 ? (
+                  <div className="card">
+                    <p className="text-muted" style={{ marginBottom: 0 }}>
+                      まだ受講対象者がいません。下の「未招待の社員」から招待を発行するか、自己登録用リンクを共有してください。
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <p
+                      className="text-muted"
+                      style={{ marginTop: 0, marginBottom: 12, fontSize: 13 }}
+                    >
+                      受講対象者 {enrolledRows.length}名 ── 🟢 合格 {passedCount} / ⚪ 未受験{" "}
+                      {notAttemptedCount} / 🔴 不合格 {failedCount}
+                    </p>
+                    <div className="card" style={{ padding: 0 }}>
+                      <div className="table-wrap">
+                        <table className="table">
+                          <thead>
+                            <tr>
+                              <th>氏名</th>
+                              <th>部署</th>
+                              <th>合否</th>
+                              <th>受験回数</th>
+                              <th>直近スコア</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {enrolledRows.map(
+                              ({ employee, enrollment, attemptCount, passed, latest }) => (
+                                <tr key={employee.id}>
+                                  <td style={{ fontWeight: 500 }}>{employee.name}</td>
+                                  <td className="text-muted">{employee.department || "-"}</td>
+                                  <td>
+                                    {passed ? (
+                                      <span
+                                        style={{ color: "var(--color-success, #1a7f37)" }}
+                                      >
+                                        🟢 合格
+                                      </span>
+                                    ) : attemptCount > 0 ? (
+                                      <span style={{ color: "var(--color-error)" }}>
+                                        🔴 不合格
+                                      </span>
+                                    ) : (
+                                      <span className="text-muted">⚪ 未受験</span>
+                                    )}
+                                  </td>
+                                  <td className="text-muted">{attemptCount}回</td>
+                                  <td className="text-muted">
+                                    {latest ? `${latest.score} / ${latest.total}` : "-"}
+                                  </td>
+                                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                                    <button
+                                      onClick={() =>
+                                        copyLink(employee.id, enrollment!.invite_token)
+                                      }
+                                      className="btn btn-outline btn-sm"
+                                    >
+                                      {copiedId === employee.id
+                                        ? "コピーしました"
+                                        : "リンクをコピー"}
+                                    </button>
+                                  </td>
+                                </tr>
+                              )
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
-            </div>
-          </div>
+
+              <div className="section" style={{ marginBottom: 0, marginTop: 24 }}>
+                <button
+                  onClick={() => setShowUninvited((v) => !v)}
+                  className="btn btn-outline btn-sm"
+                  disabled={uninvitedRows.length === 0}
+                >
+                  {uninvitedRows.length === 0
+                    ? "未招待の社員はいません"
+                    : `${showUninvited ? "▼" : "▶"} 未招待の社員 (${
+                        uninvitedRows.length
+                      }名) を${showUninvited ? "隠す" : "表示"}`}
+                </button>
+
+                {showUninvited && uninvitedRows.length > 0 && (
+                  <div className="card" style={{ padding: 0, marginTop: 12 }}>
+                    <div className="table-wrap">
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>氏名</th>
+                            <th>部署</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {uninvitedRows.map(({ employee }) => (
+                            <tr key={employee.id}>
+                              <td style={{ fontWeight: 500 }}>{employee.name}</td>
+                              <td className="text-muted">{employee.department || "-"}</td>
+                              <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                                <button
+                                  onClick={() => issueInvite(employee.id)}
+                                  disabled={issuingId === employee.id}
+                                  className="btn btn-outline btn-sm"
+                                >
+                                  {issuingId === employee.id ? "発行中..." : "招待を発行"}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </>
       )}
     </main>
