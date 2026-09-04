@@ -81,6 +81,33 @@ export async function DELETE(
 
   const supabase = getSupabaseServerClient();
 
+  // 分野別社内テストの提出済み受験履歴がある社員は削除させない。
+  // employees を削除すると training_enrollments → training_attempts → training_answers が
+  // ON DELETE CASCADE で連鎖削除され、合格記録が痕跡なく失われるため。
+  const { data: enrollments } = await supabase
+    .from("training_enrollments")
+    .select("id")
+    .eq("employee_id", params.id);
+
+  const enrollmentIds = (enrollments ?? []).map((e) => e.id);
+  if (enrollmentIds.length > 0) {
+    const { count: submittedCount } = await supabase
+      .from("training_attempts")
+      .select("id", { count: "exact", head: true })
+      .in("enrollment_id", enrollmentIds)
+      .eq("status", "submitted");
+
+    if ((submittedCount ?? 0) > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "この社員には分野別社内テストの受験履歴（提出済み）があるため削除できません。削除すると合格記録も一緒に失われます。",
+        },
+        { status: 409 }
+      );
+    }
+  }
+
   const { error } = await supabase.from("employees").delete().eq("id", params.id);
 
   if (error) {
