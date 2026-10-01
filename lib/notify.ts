@@ -154,6 +154,9 @@ export async function sendReminderEmail(params: {
  * 社員が作った社内テストの承認申請・承認結果を通知する。
  * 送信に失敗しても例外は投げず、ログに残すだけにする(申請・承認の操作自体は失敗させないため)。
  */
+/** 社員が作った社内テストの承認者(承認申請の通知先) */
+const AUTHORING_APPROVER_EMAIL = "tanaka@alpha-fp.com";
+
 async function sendAuthoringMail(params: { to: string; subject: string; html: string }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -186,7 +189,7 @@ export async function sendAuthoringSubmittedNotification(params: {
   reviewUrl: string;
 }): Promise<void> {
   await sendAuthoringMail({
-    to: TRAINING_NOTIFY_TO,
+    to: AUTHORING_APPROVER_EMAIL,
     subject: `【承認申請】${params.authorName}さんが社内テスト「${params.courseName}」の承認を申請しました`,
     html: `
       <p>${escapeHtml(params.authorName)}さんが、社内テスト「${escapeHtml(params.courseName)}」の承認を申請しました。</p>
