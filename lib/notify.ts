@@ -150,6 +150,73 @@ export async function sendReminderEmail(params: {
   }
 }
 
+/**
+ * 社員が作った社内テストの承認申請・承認結果を通知する。
+ * 送信に失敗しても例外は投げず、ログに残すだけにする(申請・承認の操作自体は失敗させないため)。
+ */
+async function sendAuthoringMail(params: { to: string; subject: string; html: string }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.error("RESEND_API_KEY が設定されていないため、通知メールをスキップしました。");
+    return;
+  }
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        from: "分野別社内テスト <onboarding@resend.dev>",
+        to: [params.to],
+        subject: params.subject,
+        html: params.html,
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error(`通知メールの送信に失敗しました(${res.status}): ${text.slice(0, 300)}`);
+    }
+  } catch (e) {
+    console.error("通知メール送信中にエラーが発生しました:", e);
+  }
+}
+
+export async function sendAuthoringSubmittedNotification(params: {
+  courseName: string;
+  authorName: string;
+  reviewUrl: string;
+}): Promise<void> {
+  await sendAuthoringMail({
+    to: TRAINING_NOTIFY_TO,
+    subject: `【承認申請】${params.authorName}さんが社内テスト「${params.courseName}」の承認を申請しました`,
+    html: `
+      <p>${escapeHtml(params.authorName)}さんが、社内テスト「${escapeHtml(params.courseName)}」の承認を申請しました。</p>
+      <p>内容を確認し、承認または差し戻しをしてください。</p>
+      <p><a href="${params.reviewUrl}">${params.reviewUrl}</a></p>
+    `,
+  });
+}
+
+export async function sendAuthoringDecisionNotification(params: {
+  to: string;
+  authorName: string;
+  courseName: string;
+  approved: boolean;
+  comment: string;
+  editorUrl: string;
+}): Promise<void> {
+  const label = params.approved ? "承認されました" : "差し戻されました";
+  await sendAuthoringMail({
+    to: params.to,
+    subject: `【社内テスト】「${params.courseName}」が${label}`,
+    html: `
+      <p>${escapeHtml(params.authorName)}さん</p>
+      <p>作成した社内テスト「${escapeHtml(params.courseName)}」が${label}。</p>
+      ${params.comment ? `<p>コメント:<br>${escapeHtml(params.comment).replace(/\n/g, "<br>")}</p>` : ""}
+      <p><a href="${params.editorUrl}">${params.editorUrl}</a></p>
+    `,
+  });
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")

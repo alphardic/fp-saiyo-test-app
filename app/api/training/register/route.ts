@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-
-const ALLOWED_EMAIL_DOMAINS = ["alpha-fp.com", "peoples-connect.com"];
+import { ALLOWED_EMAIL_DOMAINS, AuthoringError, findOrCreateEmployee } from "@/lib/trainingAuthoring";
 
 /**
  * POST /api/training/register
@@ -51,49 +50,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "無効なコースです。" }, { status: 404 });
   }
 
-  // 既存社員との突き合わせ:
-  //   1) メールアドレス完全一致 → その社員
-  //   2) 氏名一致(空白・全角/半角の違いは無視) → その社員。メール未登録なら今回の値で補完
-  //   3) どちらも無ければ新規作成
-  // 管理者が一括登録した社員(メール未登録)に対して、本人の自己登録が
-  // 重複レコードを作らないようにするための処理。
-  const normalizeName = (s: string) => s.replace(/[\s　]/g, "").toLowerCase();
-
-  const { data: allEmployees } = await supabase
-    .from("employees")
-    .select("id, name, email");
-
-  let employee: { id: string } | null =
-    (allEmployees ?? []).find((e) => (e.email ?? "").toLowerCase() === email) ?? null;
-
-  if (!employee) {
-    const nameMatches = (allEmployees ?? []).filter(
-      (e) => normalizeName(e.name) === normalizeName(name)
-    );
-    // メール未登録のレコード(一括登録された社員)を優先して紐付ける
-    const match = nameMatches.find((e) => !e.email) ?? nameMatches[0] ?? null;
-    if (match) {
-      employee = { id: match.id };
-      if (!match.email) {
-        await supabase.from("employees").update({ email }).eq("id", match.id);
-      }
-    }
-  }
-
-  if (!employee) {
-    const { data: createdEmployee, error: createEmployeeError } = await supabase
-      .from("employees")
-      .insert({ name, email, invited_by: "self-registration" })
-      .select("id")
-      .single();
-
-    if (createEmployeeError || !createdEmployee) {
-      return NextResponse.json(
-        { error: "登録に失敗しました: " + (createEmployeeError?.message ?? "") },
-        { status: 500 }
-      );
-    }
-    employee = createdEmployee;
+  let employee: { id: string };
+  try {
+    employee = await findOrCreateEmployee(name, email);
+  } catch (e) {
+    const message = e instanceof AuthoringError ? e.message : "登録に失敗しました。";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   const { data: existingEnrollment } = await supabase
