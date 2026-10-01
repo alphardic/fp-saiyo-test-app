@@ -436,6 +436,9 @@ export default function EmployeesPage() {
             <a href="/admin/training" className="btn btn-outline btn-sm">
               分野別社内テスト
             </a>
+            <a href="/admin/employees/roles" className="btn btn-outline btn-sm">
+              職種別 適性マップ
+            </a>
             <a href="/admin/employees/network" className="btn btn-outline btn-sm">
               相性の相関図
             </a>
