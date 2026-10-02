@@ -46,11 +46,11 @@ export default function TrainingAuthorRegisterPage() {
       <div className="card">
         <div className="field">
           <label>氏名</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="山田 太郎" />
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="山田 太郎" />
         </div>
         <div className="field">
           <label>会社のメールアドレス(@alpha-fp.com / @peoples-connect.com)</label>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         {error && (
           <div className="alert alert-error" style={{ marginBottom: 12 }}>

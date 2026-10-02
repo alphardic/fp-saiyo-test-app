@@ -153,7 +153,7 @@ export default function TrainingAuthorHomePage() {
         <div className="card">
           <div className="field">
             <label>テスト名</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="例: 住宅ローン控除の基礎知識テスト" />
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="例: 住宅ローン控除の基礎知識テスト" />
           </div>
           <div className="field">
             <label>目的・説明(任意)</label>
@@ -161,7 +161,7 @@ export default function TrainingAuthorHomePage() {
           </div>
           <div className="field">
             <label>受験対象者(任意)</label>
-            <input value={targetAudience} onChange={(e) => setTargetAudience(e.target.value)} placeholder="例: 入社1年目のFP" />
+            <input type="text" value={targetAudience} onChange={(e) => setTargetAudience(e.target.value)} placeholder="例: 入社1年目のFP" />
           </div>
           <button className="btn btn-primary" onClick={createCourse} disabled={creating}>
             {creating ? "作成中..." : "作成して資料の登録へ進む"}

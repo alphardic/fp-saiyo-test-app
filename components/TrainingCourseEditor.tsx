@@ -102,8 +102,19 @@ export default function TrainingCourseEditor(props: {
         },
         body: init?.json !== undefined ? JSON.stringify(init.json) : init?.body,
       });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || "処理に失敗しました。");
+      const text = await res.text();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let body: any = {};
+      try {
+        body = JSON.parse(text);
+      } catch {
+        // サーバーがJSON以外(タイムアウト時のエラーページ等)を返した場合
+      }
+      if (!res.ok) {
+        throw new Error(
+          body.error || `処理に失敗しました(エラーコード ${res.status}: ${text.replace(/<[^>]+>/g, " ").trim().slice(0, 150)})`
+        );
+      }
       return body;
     },
     [courseId, getHeaders]
@@ -373,7 +384,7 @@ export default function TrainingCourseEditor(props: {
         <div className="card">
           <div className="field">
             <label>テスト名</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} disabled={!canEdit} />
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} disabled={!canEdit} />
           </div>
           <div className="field">
             <label>目的・説明(受験者にも表示されます)</label>
@@ -386,7 +397,7 @@ export default function TrainingCourseEditor(props: {
           </div>
           <div className="field">
             <label>受験対象者(例: MUJIハウスから紹介を受けた顧客を担当するFP)</label>
-            <input value={targetAudience} onChange={(e) => setTargetAudience(e.target.value)} disabled={!canEdit} />
+            <input type="text" value={targetAudience} onChange={(e) => setTargetAudience(e.target.value)} disabled={!canEdit} />
           </div>
           <div className="field" style={{ maxWidth: 260 }}>
             <label>1つの知識ポイントあたりの問題パターン数</label>
@@ -498,12 +509,14 @@ export default function TrainingCourseEditor(props: {
                 </span>
                 <div style={{ flex: 1 }}>
                   <input
+                    type="text"
                     value={p.label}
                     onChange={(e) => updatePoint(i, { label: e.target.value })}
                     disabled={!canEdit}
                     style={{ fontWeight: 600, marginBottom: 4 }}
                   />
                   <input
+                    type="text"
                     value={p.summary}
                     onChange={(e) => updatePoint(i, { summary: e.target.value })}
                     disabled={!canEdit}
@@ -825,6 +838,7 @@ function QuestionItem(props: {
                 {LETTERS[i]}
               </label>
               <input
+                type="text"
                 value={c}
                 onChange={(e) => setDraftChoices((cur) => cur.map((x, j) => (j === i ? e.target.value : x)))}
               />
@@ -839,7 +853,7 @@ function QuestionItem(props: {
           </div>
           <div className="field">
             <label>直した理由(任意。書くとAIが今後の作問ルールとして学びやすくなります)</label>
-            <input value={reason} onChange={(e) => setReason(e.target.value)} />
+            <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} />
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
