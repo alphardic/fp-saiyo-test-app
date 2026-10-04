@@ -188,7 +188,7 @@ export default function TrainingAdminPage() {
         <p>合格するまで何度でも受験できます。出題は知識ポイントごとに毎回パターンが変わります。</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
           <a href="/admin/training/authoring" className="btn btn-outline btn-sm">
-            社員が作ったテストの承認
+            社員が作ったテスト
           </a>
           <a href="/admin/training/rules" className="btn btn-outline btn-sm">
             作問ルール

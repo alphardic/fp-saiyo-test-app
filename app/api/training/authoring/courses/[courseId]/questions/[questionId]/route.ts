@@ -21,7 +21,7 @@ type Params = { params: { courseId: string; questionId: string } };
 export async function PATCH(req: NextRequest, { params }: Params) {
   return handleAuthoring(async () => {
     const actor = await resolveActor(req);
-    const course = await loadCourseForActor(actor, params.courseId, { edit: true });
+    const course = await loadCourseForActor(actor, params.courseId, { edit: true, allowReviewer: true });
     const target = (await loadQuestions(course.id)).find((q) => q.id === params.questionId);
     if (!target) throw new AuthoringError("問題が見つかりません。", 404);
 

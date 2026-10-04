@@ -199,6 +199,23 @@ export async function sendAuthoringSubmittedNotification(params: {
   });
 }
 
+/** 社員が作ったテストの配布開始を管理者に知らせる(承認は不要。事後確認用) */
+export async function sendAuthoringPublishedNotification(params: {
+  courseName: string;
+  authorName: string;
+  reviewUrl: string;
+}): Promise<void> {
+  await sendAuthoringMail({
+    to: AUTHORING_APPROVER_EMAIL,
+    subject: `【配布開始】${params.authorName}さんが社内テスト「${params.courseName}」の配布を始めました`,
+    html: `
+      <p>${escapeHtml(params.authorName)}さんが、社内テスト「${escapeHtml(params.courseName)}」の配布を始めました。</p>
+      <p>問題と受験結果は、次のページから確認できます。</p>
+      <p><a href="${params.reviewUrl}">${params.reviewUrl}</a></p>
+    `,
+  });
+}
+
 export async function sendAuthoringDecisionNotification(params: {
   to: string;
   authorName: string;

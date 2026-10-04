@@ -48,30 +48,26 @@ const COURSE_COLUMNS =
   "id, name, description, target_audience, source_notes, outline, variants_per_point, status, author_employee_id, review_comment, submitted_at, decided_at, decided_by, created_at";
 
 /**
- * 作問APIの操作者。社員は作問用リンクのトークン(x-author-token ヘッダー)、
- * 管理者は通常の管理画面ログイン(Authorization ヘッダー)で識別する。
+ * 作問APIの操作者。
+ * - 社員: 社員用ポータル(/training/portal)でログインし、Authorization ヘッダー + x-portal: 1 で識別する
+ * - 管理者: 通常の管理画面ログイン(Authorization ヘッダーのみ)で識別する
  */
 export type Actor =
   | { kind: "author"; employeeId: string; name: string; email: string | null }
   | { kind: "admin"; name: string };
 
+/** テストに対する操作者の立場。owner=作成者、reviewer=確認を頼まれた人 */
+export type CourseRole = "owner" | "reviewer" | "admin";
+
+export type CourseWithRole = AuthoringCourse & { role: CourseRole };
+
+export function isAllowedEmail(email: string): boolean {
+  return ALLOWED_EMAIL_DOMAINS.some((d) => email.endsWith("@" + d));
+}
+
 export async function resolveActor(req: NextRequest): Promise<Actor> {
-  const authorToken = req.headers.get("x-author-token");
-  if (authorToken) {
-    const supabase = getSupabaseServerClient();
-    const { data: author } = await supabase
-      .from("training_authors")
-      .select("employee_id")
-      .eq("author_token", authorToken)
-      .maybeSingle();
-    if (!author) throw new AuthoringError("無効な作問リンクです。", 404);
-    const { data: employee } = await supabase
-      .from("employees")
-      .select("id, name, email")
-      .eq("id", author.employee_id)
-      .single();
-    if (!employee) throw new AuthoringError("社員情報が見つかりません。", 404);
-    return { kind: "author", employeeId: employee.id, name: employee.name, email: employee.email };
+  if (req.headers.get("x-portal") === "1") {
+    return resolvePortalUser(req);
   }
 
   const adminResult = await requireAdmin(req);
@@ -81,16 +77,52 @@ export async function resolveActor(req: NextRequest): Promise<Actor> {
   return { kind: "admin", name: adminResult.email ?? "管理者" };
 }
 
+async function resolvePortalUser(req: NextRequest): Promise<Actor> {
+  const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  if (!token) throw new AuthoringError("ログインしてください。", 401);
+
+  const supabase = getSupabaseServerClient();
+  const { data: userData, error } = await supabase.auth.getUser(token);
+  const email = userData?.user?.email?.toLowerCase();
+  if (error || !email) {
+    throw new AuthoringError("ログインの有効期限が切れました。もう一度ログインしてください。", 401);
+  }
+  if (!isAllowedEmail(email)) {
+    throw new AuthoringError("会社のメールアドレスでログインしてください。", 403);
+  }
+
+  const employee = await findEmployeeByEmail(email);
+  if (employee) {
+    return { kind: "author", employeeId: employee.id, name: employee.name, email };
+  }
+  const metaName = (userData.user?.user_metadata?.name as string | undefined)?.trim();
+  const created = await findOrCreateEmployee(metaName || email.split("@")[0], email);
+  return { kind: "author", employeeId: created.id, name: metaName || email, email };
+}
+
+export async function findEmployeeByEmail(
+  email: string
+): Promise<{ id: string; name: string; email: string | null } | null> {
+  const supabase = getSupabaseServerClient();
+  const { data } = await supabase
+    .from("employees")
+    .select("id, name, email")
+    .ilike("email", email.replace(/[%_\\]/g, "\\$&"))
+    .limit(1);
+  return data?.[0] ?? null;
+}
+
 /**
  * コースを読み込み、操作者に権限があるか確認する。
- * - 社員: 自分が作ったコースのみ。編集は下書き・差し戻し中のみ
- * - 管理者: すべて閲覧可。編集は承認済み以外(承認待ちの修正も可)
+ * - 作成者: 自分が作ったコース。編集は作成中・差し戻し中のみ
+ * - 確認者: 確認を頼まれたコースの閲覧。allowReviewer の操作(問題の指摘・手直し)だけ、作成中なら可
+ * - 管理者: すべて閲覧可。編集は配布中以外(承認待ちの修正も可)
  */
 export async function loadCourseForActor(
   actor: Actor,
   courseId: string,
-  opts: { edit: boolean }
-): Promise<AuthoringCourse> {
+  opts: { edit: boolean; allowReviewer?: boolean }
+): Promise<CourseWithRole> {
   const supabase = getSupabaseServerClient();
   const { data: course } = await supabase
     .from("training_courses")
@@ -100,22 +132,40 @@ export async function loadCourseForActor(
   if (!course) throw new AuthoringError("テストが見つかりません。", 404);
 
   const c = course as AuthoringCourse;
-  if (actor.kind === "author" && c.author_employee_id !== actor.employeeId) {
-    throw new AuthoringError("このテストを操作する権限がありません。", 403);
+  let role: CourseRole;
+  if (actor.kind === "admin") {
+    role = "admin";
+  } else if (c.author_employee_id === actor.employeeId) {
+    role = "owner";
+  } else {
+    const { data: review } = await supabase
+      .from("training_course_reviewers")
+      .select("id")
+      .eq("course_id", c.id)
+      .eq("reviewer_employee_id", actor.employeeId)
+      .maybeSingle();
+    if (!review) throw new AuthoringError("このテストを見る権限がありません。", 403);
+    role = "reviewer";
   }
+
   if (opts.edit) {
-    const editable: CourseStatus[] =
-      actor.kind === "admin" ? ["draft", "pending", "rejected"] : ["draft", "rejected"];
-    if (!editable.includes(c.status)) {
+    if (role === "reviewer" && !opts.allowReviewer) {
+      throw new AuthoringError("この操作はテストの作成者のみ行えます。", 403);
+    }
+    if (!editableStatuses(role).includes(c.status)) {
       throw new AuthoringError(
         c.status === "pending"
           ? "承認申請中のため編集できません。"
-          : "承認済みのテストは編集できません。",
+          : "配布中のテストは編集できません。",
         409
       );
     }
   }
-  return c;
+  return { ...c, role };
+}
+
+export function editableStatuses(role: CourseRole): CourseStatus[] {
+  return role === "admin" ? ["draft", "pending", "rejected"] : ["draft", "rejected"];
 }
 
 export async function loadQuestions(courseId: string): Promise<AuthoringQuestion[]> {

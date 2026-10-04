@@ -24,7 +24,7 @@ export async function POST(
 ) {
   return handleAuthoring(async () => {
     const actor = await resolveActor(req);
-    const course = await loadCourseForActor(actor, params.courseId, { edit: true });
+    const course = await loadCourseForActor(actor, params.courseId, { edit: true, allowReviewer: true });
     const body = (await req.json().catch(() => ({}))) as { comment?: string; applyToGroup?: boolean };
     const comment = body.comment?.trim();
     if (!comment) throw new AuthoringError("指摘内容を入力してください。", 400);

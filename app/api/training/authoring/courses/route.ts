@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   return handleAuthoring(async () => {
     const actor = await resolveActor(req);
     if (actor.kind !== "author") {
-      throw new AuthoringError("作問用リンクからアクセスしてください。", 400);
+      throw new AuthoringError("社員用ページからログインしてください。", 400);
     }
     const body = (await req.json().catch(() => ({}))) as {
       name?: string;

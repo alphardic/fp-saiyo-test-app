@@ -7,19 +7,23 @@ import {
   loadQuestions,
   resolveActor,
 } from "@/lib/trainingAuthoring";
-import { sendAuthoringSubmittedNotification } from "@/lib/notify";
+import { sendAuthoringPublishedNotification } from "@/lib/notify";
 
 /**
- * POST /api/training/authoring/courses/[courseId]/submit
- * 作成者がテストの承認を申請する。申請中は作成者は編集できなくなる。
+ * POST /api/training/authoring/courses/[courseId]/publish
+ * 作成者がテストの配布を始める(承認は不要)。配布中は編集できなくなる。
+ * 管理者には事後確認用のお知らせメールを送る。
  */
 export async function POST(req: NextRequest, { params }: { params: { courseId: string } }) {
   return handleAuthoring(async () => {
     const actor = await resolveActor(req);
-    if (actor.kind !== "author") {
-      throw new AuthoringError("承認申請は作成者のみ行えます。", 403);
+    const course = await loadCourseForActor(actor, params.courseId, { edit: false });
+    if (course.role !== "owner" || actor.kind !== "author") {
+      throw new AuthoringError("配布を始められるのはテストの作成者のみです。", 403);
     }
-    const course = await loadCourseForActor(actor, params.courseId, { edit: true });
+    if (!["draft", "rejected", "pending"].includes(course.status)) {
+      throw new AuthoringError("このテストはすでに配布中です。", 409);
+    }
 
     if (course.outline.length === 0) {
       throw new AuthoringError("知識ポイントが1つもありません。", 400);
@@ -36,15 +40,15 @@ export async function POST(req: NextRequest, { params }: { params: { courseId: s
     const supabase = getSupabaseServerClient();
     const { error } = await supabase
       .from("training_courses")
-      .update({ status: "pending", submitted_at: new Date().toISOString(), review_comment: null })
+      .update({ status: "active", published_at: new Date().toISOString() })
       .eq("id", course.id);
-    if (error) throw new AuthoringError("申請に失敗しました: " + error.message, 500);
+    if (error) throw new AuthoringError("配布の開始に失敗しました: " + error.message, 500);
 
-    await sendAuthoringSubmittedNotification({
+    await sendAuthoringPublishedNotification({
       courseName: course.name,
       authorName: actor.name,
       reviewUrl: `${req.nextUrl.origin}/admin/training/authoring/${course.id}`,
     });
-    return { ok: true };
+    return { ok: true, registerPath: `/training/register/${course.id}` };
   });
 }

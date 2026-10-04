@@ -49,22 +49,19 @@ export async function POST(req: NextRequest, { params }: { params: { courseId: s
     if (error) throw new AuthoringError("更新に失敗しました: " + error.message, 500);
 
     if (course.author_employee_id) {
-      const [{ data: author }, { data: authorLink }] = await Promise.all([
-        supabase.from("employees").select("name, email").eq("id", course.author_employee_id).maybeSingle(),
-        supabase
-          .from("training_authors")
-          .select("author_token")
-          .eq("employee_id", course.author_employee_id)
-          .maybeSingle(),
-      ]);
-      if (author?.email && authorLink) {
+      const { data: author } = await supabase
+        .from("employees")
+        .select("name, email")
+        .eq("id", course.author_employee_id)
+        .maybeSingle();
+      if (author?.email) {
         await sendAuthoringDecisionNotification({
           to: author.email,
           authorName: author.name,
           courseName: course.name,
           approved,
           comment,
-          editorUrl: `${req.nextUrl.origin}/training/author/${authorLink.author_token}/course/${course.id}`,
+          editorUrl: `${req.nextUrl.origin}/training/portal/course/${course.id}`,
         });
       }
     }
