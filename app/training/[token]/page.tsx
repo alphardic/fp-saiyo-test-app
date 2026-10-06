@@ -351,7 +351,8 @@ export default function TrainingExamPage() {
         </div>
       )}
 
-      {status.attemptCount === 0 && !status.passed && (
+      {/* MUJIハウス提携テスト専用の案内。ほかの社内テストには出さない */}
+      {status.attemptCount === 0 && !status.passed && status.courseName.includes("MUJI") && (
         <div className="card" style={{ marginBottom: 16, background: "#fff7ed", borderColor: "#fdba74" }}>
           <p style={{ fontWeight: 600, marginBottom: 4 }}>
             🏠 このテストに合格しないと、MUJIハウス経由のお客様を担当できません
