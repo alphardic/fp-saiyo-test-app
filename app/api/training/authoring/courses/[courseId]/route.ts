@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     const [questions, { data: author }, { data: feedback }, { data: reviewerRows }] = await Promise.all([
       loadQuestions(course.id),
       course.author_employee_id
-        ? supabase.from("employees").select("name").eq("id", course.author_employee_id).maybeSingle()
+        ? supabase.from("employees").select("name, email").eq("id", course.author_employee_id).maybeSingle()
         : Promise.resolve({ data: null }),
       supabase
         .from("training_question_feedback")
@@ -57,6 +57,9 @@ export async function GET(req: NextRequest, { params }: Params) {
       canEditQuestions,
       myEmployeeId: actor.kind === "author" ? actor.employeeId : null,
       authorName: author?.name ?? null,
+      // 管理者が自分の作ったテストを管理画面で開いたとき、社員用ページへの案内を出すため
+      isOwnCourseAsAdmin:
+        actor.kind === "admin" && !!author?.email && author.email.toLowerCase() === actor.name.toLowerCase(),
       course: courseData,
       questions,
       feedback: feedback ?? [],

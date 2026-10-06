@@ -67,6 +67,7 @@ interface Detail {
   feedback: Feedback[];
   reviewers: Reviewer[];
   registerPath: string | null;
+  isOwnCourseAsAdmin?: boolean;
 }
 
 const STATUS_LABEL: Record<Course["status"], string> = {
@@ -126,7 +127,11 @@ export default function TrainingCourseEditor(props: {
     null
   );
   const [decisionComment, setDecisionComment] = useState("");
+  const [reviewerChoice, setReviewerChoice] = useState(""); // 社員ID or "other"
   const [reviewerEmail, setReviewerEmail] = useState("");
+  const [reviewerName, setReviewerName] = useState("");
+  const [candidates, setCandidates] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [lastRequested, setLastRequested] = useState<string | null>(null);
   const [reviewComment, setReviewComment] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -182,8 +187,18 @@ export default function TrainingCourseEditor(props: {
   // ページ(ステップ)を移ったら、前のページのお知らせは消す
   useEffect(() => {
     setMessage(null);
+    setLastRequested(null);
     window.scrollTo({ top: 0 });
   }, [step]);
+
+  // 確認をお願いできる社員の候補(作成者が「確認・配布」ページを開いたときだけ読む)
+  const isOwner = detail?.viewer === "owner";
+  useEffect(() => {
+    if (step !== "publish" || !isOwner) return;
+    api("/reviewers")
+      .then((b: { candidates: { id: string; name: string; email: string }[] }) => setCandidates(b.candidates ?? []))
+      .catch(() => setCandidates([]));
+  }, [step, isOwner, api]);
 
   async function run(label: string, fn: () => Promise<void>) {
     setBusy(label);
@@ -404,21 +419,22 @@ export default function TrainingCourseEditor(props: {
     await run("publish", async () => {
       await api("/publish", { method: "POST", json: {} });
       await load();
-      setMessage({ type: "success", text: "配布を始めました。下の配布用リンクを、受験してほしい人に送ってください。" });
+      setMessage({ type: "success", text: "配布を始めました。下の案内文をコピーして、LINE WORKSやメールで受験してほしい人に送ってください。" });
     });
   }
 
   async function requestReview() {
+    const json =
+      reviewerChoice === "other"
+        ? { email: reviewerEmail.trim(), name: reviewerName.trim() }
+        : { employeeId: reviewerChoice };
     await run("review-request", async () => {
-      const body = (await api("/reviewers", { method: "POST", json: { email: reviewerEmail } })) as {
-        reviewerName: string;
-      };
+      const body = (await api("/reviewers", { method: "POST", json })) as { reviewerName: string };
+      setReviewerChoice("");
       setReviewerEmail("");
+      setReviewerName("");
+      setLastRequested(body.reviewerName);
       await load();
-      setMessage({
-        type: "success",
-        text: `${body.reviewerName}さんに確認を依頼しました。\n相手の方の社員用ページに「確認を頼まれたテスト」として表示されます。依頼したことは、チャットなどで一言伝えてください。`,
-      });
     });
   }
 
@@ -470,6 +486,14 @@ export default function TrainingCourseEditor(props: {
   }
 
   const disabled = !canEdit || busy !== null;
+  const portalUrl = typeof window !== "undefined" ? window.location.origin + "/training/portal" : "";
+  const reviewRequestText = `社内テスト「${course.name}」を作りました。配布の前に、問題の確認をお願いします。
+
+1. 次のページを開いてください。
+${portalUrl}
+2. 初めての場合は「はじめての方(新規登録)」を押し、会社のメールアドレスで登録してください。
+3. ログイン後、「確認を頼まれたテスト」の「確認する」を押してください。
+4. 気になる問題は「指摘して直す」で直し、最後に「5. 確認・配布」で「確認しました」を押してください。`;
   const distributionText = registerUrl
     ? `社内テスト「${course.name}」を作りました。\n次のリンクを開き、氏名と会社のメールアドレスを入力して受験してください。\n${registerUrl}`
     : "";
@@ -487,6 +511,17 @@ export default function TrainingCourseEditor(props: {
           {viewer === "reviewer" ? " ／ あなたは確認を頼まれています" : ""}
         </p>
       </div>
+
+      {detail.isOwnCourseAsAdmin && (
+        <div className="alert alert-info" style={{ marginBottom: 16 }}>
+          あなたが作ったテストを、管理画面で開いています(ここでは見るだけです)。確認の依頼と配布は、社員用ページで行います。
+          <div style={{ marginTop: 8 }}>
+            <a href={`/training/portal/course/${course.id}?step=${step}`} className="btn btn-primary btn-sm">
+              社員用ページで開く(確認依頼・配布はこちら)
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* ステップの切り替え */}
       <nav style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
@@ -924,6 +959,11 @@ export default function TrainingCourseEditor(props: {
                   確認が終わっていなくても配布はできます。
                 </p>
               )}
+              {viewer === "admin" && (
+                <p className="text-muted" style={{ fontSize: 13 }}>
+                  ※ 確認の依頼は、作成者が社員用ページで行います(管理画面からはできません)。
+                </p>
+              )}
 
               {detail.reviewers.length > 0 && (
                 <div className="table-wrap" style={{ marginBottom: 12 }}>
@@ -964,24 +1004,77 @@ export default function TrainingCourseEditor(props: {
                 </div>
               )}
 
-              {viewer === "owner" && (
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-                  <div className="field" style={{ flex: "1 1 280px", marginBottom: 0 }}>
-                    <label>確認をお願いする人のメールアドレス</label>
-                    <input
-                      type="email"
-                      value={reviewerEmail}
-                      onChange={(e) => setReviewerEmail(e.target.value)}
-                      placeholder="例: yamada@alpha-fp.com"
-                    />
+              {viewer === "owner" && course.status !== "active" && (
+                <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 16 }}>
+                  <p style={{ marginTop: 0, fontWeight: 600 }}>確認を依頼する</p>
+                  <div className="field">
+                    <label>① 確認してほしい人を選ぶ</label>
+                    <select value={reviewerChoice} onChange={(e) => setReviewerChoice(e.target.value)}>
+                      <option value="">選んでください</option>
+                      {candidates
+                        .filter((c) => !detail.reviewers.some((r) => r.employeeId === c.id))
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}({c.email})
+                          </option>
+                        ))}
+                      <option value="other">一覧にいない人(メールアドレスを入力)</option>
+                    </select>
                   </div>
-                  <button
-                    className="btn btn-outline"
-                    onClick={requestReview}
-                    disabled={busy !== null || !reviewerEmail.trim()}
-                  >
-                    {busy === "review-request" ? "依頼中..." : "確認を依頼する"}
-                  </button>
+                  {reviewerChoice === "other" && (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <div className="field" style={{ flex: "1 1 240px" }}>
+                        <label>会社のメールアドレス</label>
+                        <input
+                          type="email"
+                          value={reviewerEmail}
+                          onChange={(e) => setReviewerEmail(e.target.value)}
+                          placeholder="例: yamada@alpha-fp.com"
+                        />
+                      </div>
+                      <div className="field" style={{ flex: "1 1 160px" }}>
+                        <label>お名前</label>
+                        <input
+                          type="text"
+                          value={reviewerName}
+                          onChange={(e) => setReviewerName(e.target.value)}
+                          placeholder="例: 山田 太郎"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label>② 依頼する</label>
+                    <div>
+                      <button
+                        className="btn btn-primary"
+                        onClick={requestReview}
+                        disabled={
+                          busy !== null ||
+                          !reviewerChoice ||
+                          (reviewerChoice === "other" && (!reviewerEmail.trim() || !reviewerName.trim()))
+                        }
+                      >
+                        {busy === "review-request" ? "依頼中..." : "確認を依頼する"}
+                      </button>
+                    </div>
+                  </div>
+                  {lastRequested && (
+                    <div className="alert alert-success" style={{ marginTop: 16 }}>
+                      {lastRequested}さんへの依頼を登録しました。続けて③の案内文を送ってください。
+                    </div>
+                  )}
+                  {detail.reviewers.length > 0 && (
+                    <div className="field" style={{ marginTop: 16, marginBottom: 0 }}>
+                      <label>③ 案内文をコピーして、LINE WORKSやメールで相手に送る(システムからは通知が届きません)</label>
+                      <textarea rows={7} readOnly value={reviewRequestText} style={{ fontSize: 13 }} />
+                      <div style={{ marginTop: 8 }}>
+                        <button className="btn btn-outline btn-sm" onClick={() => copyText("review", reviewRequestText)}>
+                          {copied === "review" ? "コピーしました" : "案内文をコピー"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -996,40 +1089,53 @@ export default function TrainingCourseEditor(props: {
             <div className="card">
               {course.status === "active" ? (
                 <>
-                  <p style={{ marginTop: 0 }}>
+                  <div className="alert alert-success" style={{ marginBottom: 16 }}>
                     配布中です
                     {course.published_at ? `(${new Date(course.published_at).toLocaleDateString("ja-JP")}から)` : ""}。
-                    受験してほしい人に、次のリンクを送ってください。受け取った人は氏名と会社のメールアドレスを入れて受験できます。
-                  </p>
+                  </div>
                   {registerUrl && (
                     <>
                       <div className="field">
-                        <label>配布用リンク</label>
-                        <input type="text" readOnly value={registerUrl} onFocus={(e) => e.target.select()} />
-                      </div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <button className="btn btn-primary btn-sm" onClick={() => copyText("url", registerUrl)}>
-                          {copied === "url" ? "コピーしました" : "リンクをコピー"}
-                        </button>
-                        <button className="btn btn-outline btn-sm" onClick={() => copyText("text", distributionText)}>
-                          {copied === "text" ? "コピーしました" : "案内文ごとコピー(チャット・メール用)"}
-                        </button>
-                        {viewer !== "reviewer" && (
-                          <button className="btn btn-outline btn-sm" onClick={() => goTo("results")}>
-                            受験結果を見る
+                        <label>① 案内文をコピーする</label>
+                        <textarea rows={4} readOnly value={distributionText} style={{ fontSize: 13 }} />
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                          <button className="btn btn-primary btn-sm" onClick={() => copyText("text", distributionText)}>
+                            {copied === "text" ? "コピーしました" : "案内文をコピー"}
                           </button>
-                        )}
+                          <button className="btn btn-outline btn-sm" onClick={() => copyText("url", registerUrl)}>
+                            {copied === "url" ? "コピーしました" : "リンクだけコピー"}
+                          </button>
+                        </div>
                       </div>
+                      <div className="field">
+                        <label>② LINE WORKSのトークやメールに貼り付けて、受験してほしい人に送る</label>
+                        <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+                          受け取った人はリンクを開き、氏名と会社のメールアドレスを入れるだけで受験できます(ログインは不要です)。何度でも受験できます。
+                        </p>
+                      </div>
+                      {viewer !== "reviewer" && (
+                        <div className="field" style={{ marginBottom: 0 }}>
+                          <label>③ 受験結果を見る</label>
+                          <div>
+                            <button className="btn btn-outline btn-sm" onClick={() => goTo("results")}>
+                              6. 受験結果へ
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
                 </>
               ) : viewer === "owner" ? (
                 <>
-                  <p style={{ marginTop: 0, fontSize: 13 }}>
-                    すべての問題を確認したら、配布を始めてください。配布を始めると配布用リンクが表示されます。
-                    <br />
-                    配布を始めると問題は編集できなくなります。
-                  </p>
+                  <p style={{ marginTop: 0, fontWeight: 600 }}>配布の流れ</p>
+                  <ol style={{ fontSize: 14, paddingLeft: 20, marginTop: 0 }}>
+                    <li>下の「配布を始める」を押す(押すと問題は編集できなくなります)</li>
+                    <li>表示される案内文(受験用リンク入り)をコピーする</li>
+                    <li>LINE WORKSのトークやメールに貼り付けて、受験してほしい人に送る</li>
+                    <li>受け取った人は、リンクを開いて氏名と会社のメールアドレスを入れて受験する(ログイン不要)</li>
+                    <li>結果は「6. 受験結果」で、1人ずつの点数と回答を見られる</li>
+                  </ol>
                   <button
                     className="btn btn-primary"
                     onClick={publish}
@@ -1068,7 +1174,7 @@ export default function TrainingCourseEditor(props: {
                 </>
               ) : (
                 <p className="text-muted" style={{ margin: 0 }}>
-                  まだ配布されていません。配布は作成者が行います。
+                  まだ配布されていません。配布は、作成者が社員用ページで行います。
                 </p>
               )}
 
