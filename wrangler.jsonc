@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "main": ".open-next/worker.js",
+  "main": "custom-worker.js",
   "name": "fp-saiyo-test-app",
   "compatibility_date": "2026-06-25",
   "compatibility_flags": ["nodejs_compat"],
@@ -8,7 +8,13 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // 毎月1日と15日の 0:00 UTC(日本時間 9:00)に、お知らせメールの下書きを作る
+  "triggers": {
+    "crons": ["0 0 1,15 * *"]
+  },
   "vars": {
-    "SUPABASE_URL": "https://vniwiybntjdbfpmumpvn.supabase.co"
+    "SUPABASE_URL": "https://vniwiybntjdbfpmumpvn.supabase.co",
+    // 全社員向けお知らせメールの送信元。Resend で alpha-fp.com のドメイン認証が済むまでは送れない
+    "NEWSLETTER_FROM": "アルファFP 社内テスト <no-reply@alpha-fp.com>"
   }
 }

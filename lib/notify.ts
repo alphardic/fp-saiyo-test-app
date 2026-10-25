@@ -237,6 +237,72 @@ export async function sendAuthoringDecisionNotification(params: {
   });
 }
 
+/** 社内テストのお知らせメールの下書きができたことを、確認者(田中さん)に知らせる */
+export async function sendNewsletterReviewRequest(params: {
+  to: string;
+  subject: string;
+  bodyHtml: string;
+  reviewUrl: string;
+  reminder: boolean;
+}): Promise<void> {
+  await sendAuthoringMail({
+    to: params.to,
+    subject: params.reminder
+      ? "【確認待ち】社内テストのお知らせメールの下書きが、まだ送られていません"
+      : "【確認のお願い】社内テストのお知らせメールの下書きができました",
+    html: `
+      <p>全社員(all_alpha)宛てのお知らせメールの下書きです。内容を確認し、問題なければ管理画面から送ってください。修正もできます。</p>
+      <p><a href="${params.reviewUrl}">${params.reviewUrl}</a></p>
+      <hr>
+      <p><strong>件名: ${escapeHtml(params.subject)}</strong></p>
+      ${params.bodyHtml}
+    `,
+  });
+}
+
+/**
+ * お知らせメールを全社員のメーリングリストへ送る。
+ * 送信元は会社ドメインのアドレス(環境変数 NEWSLETTER_FROM)。Resend でドメイン認証が済んでいないと送れない。
+ */
+export async function sendNewsletterEmail(params: {
+  to: string;
+  replyTo: string;
+  subject: string;
+  html: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.NEWSLETTER_FROM;
+  if (!apiKey) return { ok: false, error: "RESEND_API_KEYが設定されていません。" };
+  if (!from) return { ok: false, error: "送信元アドレス(NEWSLETTER_FROM)が設定されていません。" };
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        from,
+        to: [params.to],
+        reply_to: params.replyTo,
+        subject: params.subject,
+        html: params.html,
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      const notVerified = res.status === 403 || /not verified|verify a domain/i.test(text);
+      return {
+        ok: false,
+        error: notVerified
+          ? "会社のドメイン(alpha-fp.com)からメールを送る設定(Resendのドメイン認証)が、まだ済んでいません。"
+          : `送信に失敗しました(${res.status}): ${text.slice(0, 300)}`,
+      };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "不明なエラーが発生しました。" };
+  }
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
