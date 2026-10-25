@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { MBTI_TYPES, formatMbti } from "@/lib/mbti";
+import { MIN_TEXT_ANSWER_CHARS } from "@/lib/logicExamRules";
 
 interface Choice {
   key: string;
@@ -45,6 +46,8 @@ export default function LogicExamPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [started, setStarted] = useState(false);
+  // 提出時の不備(記述式の文字数不足など)。errorと違い、画面を消さずに提出ボタンの上に出す
+  const [submitNotice, setSubmitNotice] = useState<string | null>(null);
 
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -119,6 +122,18 @@ export default function LogicExamPage() {
   }
 
   async function handleSubmit() {
+    const shortTextNumbers = questions
+      .map((q, idx) => ({ q, no: idx + 1 }))
+      .filter(({ q }) => q.type === "text" && (answers[q.id]?.trim().length ?? 0) < MIN_TEXT_ANSWER_CHARS)
+      .map(({ no }) => no);
+    if (shortTextNumbers.length > 0) {
+      setSubmitNotice(
+        `問${shortTextNumbers.join("・")}は文章で答える設問です。それぞれ${MIN_TEXT_ANSWER_CHARS}文字以上でご記入ください。答えが分からない場合も、考えたことや判断の理由をご記入ください。`
+      );
+      return;
+    }
+    setSubmitNotice(null);
+
     const unanswered = questions.filter((q) => !answers[q.id]?.trim());
     if (unanswered.length > 0) {
       if (!confirm(`未回答の設問が${unanswered.length}件あります。このまま提出しますか？`)) {
@@ -149,7 +164,7 @@ export default function LogicExamPage() {
 
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
-      setError(data.error ?? "提出に失敗しました。");
+      setSubmitNotice(data.error ?? "提出に失敗しました。");
       return;
     }
 
@@ -188,6 +203,7 @@ export default function LogicExamPage() {
       acc[q.section] = (acc[q.section] ?? 0) + 1;
       return acc;
     }, {});
+    const textQuestionCount = questions.filter((q) => q.type === "text").length;
 
     return (
       <main className="page page-narrow">
@@ -197,7 +213,7 @@ export default function LogicExamPage() {
         </div>
         <div className="card">
           <p style={{ marginTop: 0 }}>
-            全{questions.length}問(所要時間の目安: 20〜30分)にご回答いただきます。
+            全{questions.length}問(所要時間の目安: 30〜60分)にご回答いただきます。
           </p>
           <ul style={{ paddingLeft: 20, marginBottom: 16 }}>
             {(["A", "B", "C"] as const)
@@ -208,6 +224,11 @@ export default function LogicExamPage() {
                 </li>
               ))}
           </ul>
+          {textQuestionCount > 0 && (
+            <div className="alert alert-info" style={{ marginBottom: 12 }}>
+              後半の{textQuestionCount}問は、文章で答える設問です。それぞれ{MIN_TEXT_ANSWER_CHARS}文字以上でご記入ください(空欄のままでは提出できません)。
+            </div>
+          )}
           <div className="alert alert-info" style={{ marginBottom: 16 }}>
             ご回答は入力のたびに自動保存されます。途中でページを閉じても、同じリンクから続きを再開できます。
           </div>
@@ -300,6 +321,8 @@ export default function LogicExamPage() {
                     style={{ fontSize: 12, textAlign: "right", marginTop: 4 }}
                   >
                     {(answers[q.id] ?? "").length}文字
+                    {(answers[q.id]?.trim().length ?? 0) < MIN_TEXT_ANSWER_CHARS &&
+                      `(${MIN_TEXT_ANSWER_CHARS}文字以上でご記入ください)`}
                   </div>
                 </div>
               )}
@@ -308,7 +331,7 @@ export default function LogicExamPage() {
         );
       })}
 
-      {error && <div className="alert alert-error mt-24">{error}</div>}
+      {submitNotice && <div className="alert alert-error mt-24">{submitNotice}</div>}
 
       <button
         onClick={handleSubmit}

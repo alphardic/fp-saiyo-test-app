@@ -87,6 +87,22 @@ const STRENGTHS_STATUS_TEXT: Record<string, string> = {
 };
 const GALLUP_URL = "https://www.gallup.com/cliftonstrengths";
 
+/** 招待から何日たっても未完了なら「フォローが必要」とみなすか */
+const FOLLOW_UP_AFTER_DAYS = 3;
+
+function daysSince(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+}
+
+/** 今日から n 日後の日付(日本時間)を "10月28日" の形で返す */
+function jpDateAfterDays(n: number): string {
+  return new Date(Date.now() + n * 86400000).toLocaleDateString("ja-JP", {
+    month: "long",
+    day: "numeric",
+    timeZone: "Asia/Tokyo",
+  });
+}
+
 function CompactStatus({ dot, text }: { dot: string; text: string }) {
   return (
     <span style={{ fontSize: 13, whiteSpace: "nowrap" }}>
@@ -169,6 +185,7 @@ export default function AdminDashboardPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedLogicId, setCopiedLogicId] = useState<string | null>(null);
   const [copiedStrengthsId, setCopiedStrengthsId] = useState<string | null>(null);
+  const [copiedFollowUpId, setCopiedFollowUpId] = useState<string | null>(null);
   const [issuingLogicId, setIssuingLogicId] = useState<string | null>(null);
   const [gradingId, setGradingId] = useState<string | null>(null);
   const [gradeError, setGradeError] = useState<string | null>(null);
@@ -370,15 +387,73 @@ export default function AdminDashboardPage() {
       const cand = candidates.find((c) => c.id === id);
       if (!cand) continue;
       const mainLink = origin + "/exam/" + cand.invite_token;
-      let block = `${cand.name} <${cand.email}>\n【金融リテラシーチェックテスト】\n${mainLink}`;
+      let block = `${cand.name} <${cand.email}>\n回答期限: ${jpDateAfterDays(FOLLOW_UP_AFTER_DAYS)}\n【金融リテラシーチェックテスト】(途中保存されないため、一度に最後までご回答ください)\n${mainLink}`;
       const lc = logicCandidateFor(cand.id);
       if (lc) {
         const logicLink = origin + "/logic-exam/" + lc.invite_token;
-        block += `\n【ロジカルシンキング適性テスト】\n${logicLink}`;
+        block += `\n【ロジカルシンキング適性テスト】(目安30〜60分。後半に文章で答える設問があります)\n${logicLink}`;
       }
       blocks.push(block);
     }
     return blocks.join("\n\n");
+  }
+
+  // 招待から FOLLOW_UP_AFTER_DAYS 日たってもテストが終わっていない候補者(採用済みの人は除く)
+  const followUps = candidates
+    .filter((c) => !c.hired_employee_id)
+    .map((c) => {
+      const mainStatus = sessionFor(c.id)?.status ?? "not_started";
+      const lc = logicCandidateFor(c.id);
+      const logicStatus = !lc ? "not_issued" : logicSessionFor(lc.id)?.status ?? "not_started";
+      return {
+        candidate: c,
+        logicCandidate: lc,
+        mainStatus,
+        logicStatus,
+        mainPending: mainStatus === "not_started" || mainStatus === "in_progress",
+        logicPending: logicStatus === "not_started" || logicStatus === "in_progress",
+        days: daysSince(c.created_at),
+      };
+    })
+    .filter((f) => (f.mainPending || f.logicPending) && f.days >= FOLLOW_UP_AFTER_DAYS)
+    .sort((a, b) => a.days - b.days);
+
+  function buildFollowUpText(f: (typeof followUps)[number]): string {
+    const lines = [
+      `${f.candidate.name} 様`,
+      "",
+      "先日ご案内したテストのご回答が、まだお済みでないようでしたのでご連絡いたしました。",
+      `お手数ですが、${jpDateAfterDays(FOLLOW_UP_AFTER_DAYS)}までにご回答をお願いいたします。`,
+    ];
+    if (f.mainPending) {
+      lines.push(
+        "",
+        "【金融リテラシーチェックテスト】",
+        "途中保存されないため、一度に最後までご回答ください。",
+        origin + "/exam/" + f.candidate.invite_token
+      );
+    }
+    if (f.logicPending && f.logicCandidate) {
+      lines.push(
+        "",
+        "【ロジカルシンキング適性テスト】",
+        "目安は30〜60分です。後半に文章で答える設問があります。回答は自動保存され、途中で閉じても同じリンクから再開できます。",
+        origin + "/logic-exam/" + f.logicCandidate.invite_token
+      );
+    }
+    lines.push("", "ご不明な点があれば、お気軽にご連絡ください。");
+    return lines.join("\n");
+  }
+
+  async function copyFollowUp(f: (typeof followUps)[number]) {
+    const text = buildFollowUpText(f);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedFollowUpId(f.candidate.id);
+      setTimeout(() => setCopiedFollowUpId((cur) => (cur === f.candidate.id ? null : cur)), 2000);
+    } catch {
+      prompt("この内容をコピーしてください:", text);
+    }
   }
 
   async function copyInviteList() {
@@ -742,6 +817,62 @@ export default function AdminDashboardPage() {
           {addError && <div className="alert alert-error" style={{ marginTop: 12, marginBottom: 0 }}>{addError}</div>}
         </div>
       </div>
+
+      {followUps.length > 0 && (
+        <div className="section">
+          <div className="section-title">
+            <span className="dot" />
+            <h2>フォローが必要な候補者({followUps.length}名)</h2>
+          </div>
+          <div className="card" style={{ padding: 0 }}>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0, padding: "16px 20px 4px" }}>
+              招待から{FOLLOW_UP_AFTER_DAYS}日たっても、テストが終わっていない候補者です。「催促文をコピー」で、受験リンクと期限の入った文面をコピーできます。LINEやメールに貼り付けて送ってください。30日以上たった方は、辞退かどうかの確認か、候補者の削除をご検討ください。
+            </p>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>氏名</th>
+                    <th>招待した人</th>
+                    <th>招待から</th>
+                    <th>終わっていないテスト</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {followUps.map((f) => (
+                    <tr key={f.candidate.id}>
+                      <td style={{ fontWeight: 500 }}>{f.candidate.name}</td>
+                      <td className="text-muted">{f.candidate.invited_by ?? "記録なし"}</td>
+                      <td
+                        style={{
+                          whiteSpace: "nowrap",
+                          color: f.days >= 30 ? "var(--color-text-muted)" : "var(--color-error)",
+                        }}
+                      >
+                        {f.days}日
+                      </td>
+                      <td className="text-muted">
+                        {[
+                          f.mainPending && `金融リテラシー(${MAIN_STATUS_TEXT[f.mainStatus]})`,
+                          f.logicPending && `ロジカル(${LOGIC_STATUS_TEXT[f.logicStatus]})`,
+                        ]
+                          .filter(Boolean)
+                          .join("、")}
+                      </td>
+                      <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        <button onClick={() => copyFollowUp(f)} className="btn btn-outline btn-sm">
+                          {copiedFollowUpId === f.candidate.id ? "コピーしました" : "催促文をコピー"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="section" style={{ marginBottom: 0 }}>
         <div className="section-title">

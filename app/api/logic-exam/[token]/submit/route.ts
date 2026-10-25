@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { gradeDescriptiveAnswer, generateOverallSummary } from "@/lib/aiGrading";
+import { MIN_TEXT_ANSWER_CHARS } from "@/lib/logicExamRules";
 
 interface SubmitAnswer {
   questionId: string;
@@ -61,6 +62,21 @@ export async function POST(
   }
 
   const questionMap = new Map(questions.map((q) => [q.id, q]));
+
+  // 記述式が空欄・極端に短いままの提出は受け付けない(評価できないため)
+  const shortTextCount = questions.filter((q) => {
+    if (q.type !== "text") return false;
+    const ans = answers.find((a) => a.questionId === q.id);
+    return (ans?.textAnswer?.trim().length ?? 0) < MIN_TEXT_ANSWER_CHARS;
+  }).length;
+  if (shortTextCount > 0) {
+    return NextResponse.json(
+      {
+        error: `文章で答える設問が${shortTextCount}問、${MIN_TEXT_ANSWER_CHARS}文字に足りていません。ご記入のうえ、もう一度提出してください。`,
+      },
+      { status: 400 }
+    );
+  }
 
   let correctCount = 0;
   let choiceCount = 0;

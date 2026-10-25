@@ -12,11 +12,20 @@ export async function GET(req: NextRequest) {
 
   const supabase = getSupabaseServerClient();
 
-  const { data: courses, error: coursesError } = await supabase
+  const withDueDate = await supabase
     .from("training_courses")
-    .select("id, name, description, status, created_at")
+    .select("id, name, description, status, created_at, due_date")
     .eq("status", "active")
     .order("created_at", { ascending: true });
+
+  // due_date 列の追加(supabase/training_due_date_migration.sql)前でも一覧は表示できるようにする
+  const { data: courses, error: coursesError } = withDueDate.error
+    ? await supabase
+        .from("training_courses")
+        .select("id, name, description, status, created_at")
+        .eq("status", "active")
+        .order("created_at", { ascending: true })
+    : withDueDate;
 
   if (coursesError) {
     return NextResponse.json({ error: "コースの取得に失敗しました。" }, { status: 500 });
@@ -33,7 +42,7 @@ export async function GET(req: NextRequest) {
 
   const { data: enrollments } = await supabase
     .from("training_enrollments")
-    .select("id, course_id, employee_id, invite_token, created_at");
+    .select("id, course_id, employee_id, invite_token, invited_by, created_at");
 
   const enrollmentIds = (enrollments ?? []).map((e) => e.id);
   let attempts: {
