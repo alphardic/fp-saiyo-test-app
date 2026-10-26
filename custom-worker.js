@@ -7,7 +7,7 @@ import { default as handler } from "./.open-next/worker.js";
 export default {
   fetch: handler.fetch,
 
-  /** 社内テストのお知らせメールの下書きを作り、確認者に知らせる(全社員への送信はしない) */
+  /** 毎時、お知らせメールの定期処理(下書き作成・催促・承認済みの号の配信)を呼ぶ */
   async scheduled(event, env, ctx) {
     const request = new Request(
       "https://fp-saiyo-test-app.tanaka-a6c.workers.dev/api/cron/newsletter",

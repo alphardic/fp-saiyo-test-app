@@ -237,27 +237,39 @@ export async function sendAuthoringDecisionNotification(params: {
   });
 }
 
-/** 社内テストのお知らせメールの下書きができたことを、確認者(田中さん)に知らせる */
-export async function sendNewsletterReviewRequest(params: {
+/**
+ * お知らせメールの確認者(田中さん)に、AIくんの名前でメールを送る。
+ * 会社ドメイン(NEWSLETTER_FROM)から送り、ドメイン認証がまだで送れなければ Resend の仮の送信元で送る
+ * (仮の送信元は、Resend に登録した田中さんのアドレスにだけ届く)。
+ */
+export async function sendToNewsletterReviewer(params: {
   to: string;
   subject: string;
-  bodyHtml: string;
-  reviewUrl: string;
-  reminder: boolean;
+  html: string;
 }): Promise<void> {
-  await sendAuthoringMail({
-    to: params.to,
-    subject: params.reminder
-      ? "【確認待ち】社内テストのお知らせメールの下書きが、まだ送られていません"
-      : "【確認のお願い】社内テストのお知らせメールの下書きができました",
-    html: `
-      <p>全社員(all_alpha)宛てのお知らせメールの下書きです。内容を確認し、問題なければ管理画面から送ってください。修正もできます。</p>
-      <p><a href="${params.reviewUrl}">${params.reviewUrl}</a></p>
-      <hr>
-      <p><strong>件名: ${escapeHtml(params.subject)}</strong></p>
-      ${params.bodyHtml}
-    `,
-  });
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.error("RESEND_API_KEY が設定されていないため、確認依頼メールをスキップしました。");
+    return;
+  }
+  const senders = [
+    process.env.NEWSLETTER_FROM,
+    "アルファグループの知識を高めるAIくん <onboarding@resend.dev>",
+  ].filter((s): s is string => !!s);
+  for (const from of senders) {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ from, to: [params.to], subject: params.subject, html: params.html }),
+      });
+      if (res.ok) return;
+      const text = await res.text().catch(() => "");
+      console.error(`確認依頼メールの送信に失敗しました(${from}, ${res.status}): ${text.slice(0, 300)}`);
+    } catch (e) {
+      console.error("確認依頼メール送信中にエラーが発生しました:", e);
+    }
+  }
 }
 
 /**

@@ -4,7 +4,7 @@ import { requireSuperAdmin } from "@/lib/adminAuth";
 
 /**
  * POST /api/admin/newsletters/[id]/discard
- * 下書きを送らずに取りやめる(最高権限者のみ)。次の定期実行で新しい下書きが作られる。
+ * この号を送らずに取りやめる(最高権限者のみ)。同じ号は定期実行で作り直さない(次の号は翌月25日に作る)。
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const authResult = await requireSuperAdmin(req);

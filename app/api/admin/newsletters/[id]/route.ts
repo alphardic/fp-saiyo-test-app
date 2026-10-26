@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSuperAdmin } from "@/lib/adminAuth";
+import { NewsletterError, saveNewsletterEdit } from "@/lib/newsletter";
 
 /**
  * PUT /api/admin/newsletters/[id]
- * 未送信の下書きの件名・本文を直す(最高権限者のみ)。body: { subject, body }
+ * 未送信の下書きの件名・本文を手で直す(最高権限者のみ)。body: { subject, body }
+ * 内容が変わるので、承認済みなら承認を取り消す。
  */
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const authResult = await requireSuperAdmin(req);
@@ -17,20 +19,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: "件名と本文を入力してください。" }, { status: 400 });
   }
 
-  const supabase = getSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("newsletters")
-    .update({ subject, body: text })
-    .eq("id", params.id)
-    .eq("status", "draft")
-    .select("id")
-    .maybeSingle();
-
-  if (error) {
-    return NextResponse.json({ error: "保存に失敗しました: " + error.message }, { status: 500 });
+  try {
+    await saveNewsletterEdit(getSupabaseServerClient(), params.id, subject, text);
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    const message = e instanceof NewsletterError ? e.message : "保存に失敗しました。";
+    return NextResponse.json({ error: message }, { status: 409 });
   }
-  if (!data) {
-    return NextResponse.json({ error: "送信済み・取りやめ済みのメールは直せません。" }, { status: 409 });
-  }
-  return NextResponse.json({ success: true });
 }
