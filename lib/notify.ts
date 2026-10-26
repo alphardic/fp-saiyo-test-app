@@ -246,12 +246,10 @@ export async function sendToNewsletterReviewer(params: {
   to: string;
   subject: string;
   html: string;
-}): Promise<void> {
+}): Promise<{ ok: true } | { ok: false; error: string }> {
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.error("RESEND_API_KEY が設定されていないため、確認依頼メールをスキップしました。");
-    return;
-  }
+  if (!apiKey) return { ok: false, error: "RESEND_API_KEY が設定されていません。" };
+  const errors: string[] = [];
   const senders = [
     process.env.NEWSLETTER_FROM,
     "アルファグループの知識を高めるAIくん <onboarding@resend.dev>",
@@ -263,13 +261,15 @@ export async function sendToNewsletterReviewer(params: {
         headers: { "content-type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({ from, to: [params.to], subject: params.subject, html: params.html }),
       });
-      if (res.ok) return;
+      if (res.ok) return { ok: true };
       const text = await res.text().catch(() => "");
-      console.error(`確認依頼メールの送信に失敗しました(${from}, ${res.status}): ${text.slice(0, 300)}`);
+      errors.push(`${from} → ${res.status}: ${text.slice(0, 300)}`);
     } catch (e) {
-      console.error("確認依頼メール送信中にエラーが発生しました:", e);
+      errors.push(`${from} → ${e instanceof Error ? e.message : "不明なエラー"}`);
     }
   }
+  console.error("確認依頼メールの送信に失敗しました:", errors);
+  return { ok: false, error: errors.join(" / ") };
 }
 
 /**

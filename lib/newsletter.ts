@@ -803,7 +803,7 @@ export async function notifyReviewer(
   kind: ReviewerNotice,
   newsletter: { subject: string; body: string; stats: unknown },
   detail?: string
-): Promise<void> {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const meta = readMeta(newsletter.stats);
   const issue = meta.issueMonth ? issueLabel(meta.issueMonth) : "お知らせメール";
   const sendDay = meta.issueMonth ? jpDay(`${meta.issueMonth}-01`) : "1日";
@@ -840,7 +840,7 @@ export async function notifyReviewer(
       ? `<p><strong>仕上げ担当AIからのメモ</strong></p><div style="font-size:13px;color:#555">${escapeHtml(meta.agents.reviewNote).replace(/\n/g, "<br>")}</div>`
       : "";
 
-  await sendToNewsletterReviewer({
+  return sendToNewsletterReviewer({
     to: NEWSLETTER_REVIEWER,
     subject: h.subject,
     html: `

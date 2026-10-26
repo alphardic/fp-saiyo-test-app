@@ -36,7 +36,7 @@ interface Newsletter {
   sent_by: string | null;
 }
 
-type Busy = "create" | "save" | "revise" | "approve" | "unapprove" | "send" | "discard" | null;
+type Busy = "create" | "save" | "revise" | "approve" | "unapprove" | "send" | "discard" | "notify" | null;
 
 const STATUS_LABEL: Record<Newsletter["status"], string> = {
   draft: "確認待ち",
@@ -210,6 +210,13 @@ export default function NewsletterAdminPage() {
     }
   }
 
+  async function resendNotice() {
+    if (!draft) return;
+    if (await call("notify", `/api/admin/newsletters/${draft.id}/notify`, "POST")) {
+      setMessage({ ok: true, text: "tanaka@alpha-fp.com に赤入れのお願いメールを送りました。届いているか確認してください。" });
+    }
+  }
+
   async function discardDraft() {
     if (!draft) return;
     if (!confirm("この号は送らずに取りやめます。よろしいですか？")) return;
@@ -371,6 +378,9 @@ export default function NewsletterAdminPage() {
                   </button>
                   <button onClick={createDraft} disabled={busy !== null} className="btn btn-outline btn-sm">
                     {busy === "create" ? "作り直し中(3〜5分)..." : "4人のAIで一から作り直す"}
+                  </button>
+                  <button onClick={resendNotice} disabled={busy !== null} className="btn btn-outline btn-sm">
+                    {busy === "notify" ? "送信中..." : "赤入れのお願いメールを自分に再送"}
                   </button>
                   <button onClick={discardDraft} disabled={busy !== null} className="btn btn-outline btn-sm">
                     この号は送らない
