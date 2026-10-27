@@ -427,12 +427,12 @@ export default function EmployeesPage() {
         <a href="/admin" className="text-muted" style={{ fontSize: 13 }}>
           ← ダッシュボードへ戻る
         </a>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
           <div>
             <h1 style={{ marginTop: 8 }}>社員管理</h1>
             <p>社員の基本情報とMBTIを登録します。総合レポートで使用します。</p>
           </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
             <a href="/admin/training" className="btn btn-outline btn-sm">
               分野別社内テスト
             </a>

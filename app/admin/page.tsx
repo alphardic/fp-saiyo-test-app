@@ -691,12 +691,20 @@ export default function AdminDashboardPage() {
   return (
     <main className="page page-wide">
       <div className="page-header">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
             <h1>候補者管理</h1>
             <p>候補者の招待と受験状況を管理します。</p>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <a href="/admin/employees" className="btn btn-outline btn-sm">
               社員管理
             </a>
