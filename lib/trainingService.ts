@@ -1,5 +1,6 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { sendTrainingResultNotification } from "@/lib/notify";
+import { loadCourseVideoUrl, loadVideoStatus, recordVideoSeconds, type VideoStatus } from "@/lib/trainingVideo";
 
 export class TrainingAccessError extends Error {
   status: number;
@@ -135,7 +136,37 @@ export async function getTrainingStatusForToken(token: string) {
     questions: currentQuestions,
     totalQuestions,
     passThreshold: passThresholdFor(totalQuestions),
+    video: await loadVideoForEnrollment(supabase, enrollment),
   };
+}
+
+/** コースに動画があれば、この受講者の視聴状況を返す。動画が無ければ null */
+async function loadVideoForEnrollment(
+  supabase: ReturnType<typeof getSupabaseServerClient>,
+  enrollment: { id: string; course_id: string }
+): Promise<VideoStatus | null> {
+  const url = await loadCourseVideoUrl(supabase, enrollment.course_id);
+  if (!url) return null;
+  return loadVideoStatus(supabase, enrollment.id, url);
+}
+
+/**
+ * 研修動画の視聴記録を足す。再生した秒の一覧を受け取り、最新の視聴状況を返す。
+ * app/api/training/[token]/video-progress/route.ts から利用。
+ */
+export async function recordTrainingVideoProgress(
+  token: string,
+  seconds: number[],
+  durationSec: number
+): Promise<VideoStatus> {
+  const { supabase, enrollment } = await loadEnrollment(token);
+  const url = await loadCourseVideoUrl(supabase, enrollment.course_id);
+  if (!url) throw new TrainingAccessError("このテストには研修動画がありません。", 404);
+  try {
+    return await recordVideoSeconds(supabase, enrollment.id, url, seconds, durationSec);
+  } catch {
+    throw new TrainingAccessError("視聴記録の保存に失敗しました。", 500);
+  }
 }
 
 /**
@@ -156,6 +187,12 @@ export async function startTrainingAttempt(token: string) {
   let questionIds = existing?.question_ids as string[] | undefined;
 
   if (!attemptId) {
+    // 研修動画があるテストは、動画を最後まで見てから受験する
+    const video = await loadVideoForEnrollment(supabase, enrollment);
+    if (video && !video.completed) {
+      throw new TrainingAccessError("研修動画を最後まで視聴してから、テストを開始してください。", 403);
+    }
+
     const { data: pool } = await supabase
       .from("training_questions")
       .select("id, group_key")

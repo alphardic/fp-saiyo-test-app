@@ -23,6 +23,8 @@ interface Course {
   decided_at: string | null;
   decided_by: string | null;
   published_at: string | null;
+  /** 研修動画(Vimeoのプレーヤーの URL)。未設定なら null */
+  video_url?: string | null;
 }
 
 interface Question {
@@ -118,6 +120,7 @@ export default function TrainingCourseEditor(props: {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
   const [variants, setVariants] = useState(3);
   const [notes, setNotes] = useState("");
   const [outline, setOutline] = useState<OutlinePoint[]>([]);
@@ -171,6 +174,7 @@ export default function TrainingCourseEditor(props: {
       setName(d.course.name);
       setDescription(d.course.description ?? "");
       setTargetAudience(d.course.target_audience ?? "");
+      setVideoUrl(d.course.video_url ?? "");
       setVariants(d.course.variants_per_point);
       setNotes(d.course.source_notes);
       setOutline(d.course.outline);
@@ -260,6 +264,7 @@ export default function TrainingCourseEditor(props: {
     name !== course.name ||
     description !== (course.description ?? "") ||
     targetAudience !== (course.target_audience ?? "") ||
+    videoUrl.trim() !== (course.video_url ?? "") ||
     variants !== course.variants_per_point;
   const notesDirty = notes !== course.source_notes;
   const myReview = detail.reviewers.find((r) => r.employeeId === detail.myEmployeeId) ?? null;
@@ -290,6 +295,7 @@ export default function TrainingCourseEditor(props: {
       setName(course.name);
       setDescription(course.description ?? "");
       setTargetAudience(course.target_audience ?? "");
+      setVideoUrl(course.video_url ?? "");
       setVariants(course.variants_per_point);
       setNotes(course.source_notes);
       setOutline(course.outline);
@@ -302,7 +308,14 @@ export default function TrainingCourseEditor(props: {
     await run("basics", async () => {
       await api("", {
         method: "PATCH",
-        json: { name, description, targetAudience, variantsPerPoint: variants },
+        json: {
+          name,
+          description,
+          targetAudience,
+          variantsPerPoint: variants,
+          // 動画は変えたときだけ送る(動画用のSQLを実行する前でも概要を保存できるように)
+          ...(videoUrl.trim() !== (course.video_url ?? "") ? { videoUrl: videoUrl.trim() || null } : {}),
+        },
       });
       await load();
       setMessage({ type: "success", text: "テストの概要を保存しました。" });
@@ -594,6 +607,19 @@ ${portalUrl}
                 onChange={(e) => setTargetAudience(e.target.value)}
                 disabled={!canEdit}
               />
+            </div>
+            <div className="field">
+              <label>研修動画(任意・VimeoのURL)</label>
+              <input
+                type="url"
+                placeholder="https://vimeo.com/123456789/abcdef1234"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                disabled={!canEdit}
+              />
+              <p className="text-muted" style={{ fontSize: 12, marginTop: 4, marginBottom: 0 }}>
+                設定すると、受験者はテストの前にこの動画を見ます。最後まで見るまでテストは開始できません。
+              </p>
             </div>
             <div className="field" style={{ maxWidth: 260 }}>
               <label>1つの知識ポイントあたりの問題パターン数</label>
