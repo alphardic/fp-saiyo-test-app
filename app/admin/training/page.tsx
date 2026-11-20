@@ -10,6 +10,16 @@ interface Course {
   status: string;
   created_at: string;
   due_date?: string | null;
+  /** 研修動画(Vimeoのプレーヤーの URL)。未設定なら null */
+  video_url?: string | null;
+}
+
+interface VideoProgress {
+  enrollment_id: string;
+  video_url: string;
+  duration_sec: number;
+  watched_sec: number;
+  completed_at: string | null;
 }
 
 interface Employee {
@@ -71,6 +81,10 @@ export default function TrainingAdminPage() {
   const [selectedUninvitedIds, setSelectedUninvitedIds] = useState<string[]>([]);
   const [bulkInviting, setBulkInviting] = useState(false);
   const [noticeCopied, setNoticeCopied] = useState(false);
+  const [videoProgress, setVideoProgress] = useState<Record<string, VideoProgress>>({});
+  const [videoInput, setVideoInput] = useState("");
+  const [savingVideo, setSavingVideo] = useState(false);
+  const [videoMessage, setVideoMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -103,6 +117,7 @@ export default function TrainingAdminPage() {
     setEmployees(body.employees ?? []);
     setEnrollments(body.enrollments ?? []);
     setAttempts(body.attempts ?? []);
+    setVideoProgress(body.videoProgress ?? {});
     setSelectedCourseId((prev) => prev || body.courses?.[0]?.id || "");
     setLoading(false);
   }
@@ -115,6 +130,45 @@ export default function TrainingAdminPage() {
     setDueDateMessage(null);
     setSelectedUninvitedIds([]);
   }, [selectedCourse?.id, selectedCourse?.due_date]);
+
+  const videoUrl = selectedCourse?.video_url ?? null;
+
+  useEffect(() => {
+    setVideoInput(selectedCourse?.video_url ?? "");
+    setVideoMessage(null);
+  }, [selectedCourse?.id, selectedCourse?.video_url]);
+
+  /** 受講者の動画視聴状況の表示 */
+  function videoCell(enrollmentId: string) {
+    const p = videoProgress[enrollmentId];
+    if (!p || p.video_url !== videoUrl) return <span className="text-muted">⚪ 未視聴</span>;
+    if (p.completed_at) return <span style={{ color: "var(--color-success, #1a7f37)" }}>🟢 視聴済み</span>;
+    const percent = p.duration_sec > 0 ? Math.min(99, Math.floor((p.watched_sec / p.duration_sec) * 100)) : 0;
+    return <span>🟡 {percent}%</span>;
+  }
+
+  async function saveVideo(value: string | null) {
+    const token = await getAccessToken();
+    if (!token || !selectedCourseId) return;
+    setSavingVideo(true);
+    setVideoMessage(null);
+    const res = await fetch(`/api/admin/training/courses/${selectedCourseId}/video`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify({ videoUrl: value }),
+    });
+    setSavingVideo(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setVideoMessage({ ok: false, text: body.error || "動画の保存に失敗しました。" });
+      return;
+    }
+    setVideoMessage({
+      ok: true,
+      text: value ? "動画を設定しました。受講者は動画を最後まで見ると受験できます。" : "動画をなしにしました。",
+    });
+    await load();
+  }
 
   const rows = useMemo(() => {
     return employees.map((e) => {
@@ -330,6 +384,57 @@ export default function TrainingAdminPage() {
 
           <div className="section">
             <div className="card">
+              <p style={{ fontWeight: 600, marginBottom: 4 }}>研修動画</p>
+              <p className="text-muted" style={{ marginBottom: 12, fontSize: 13 }}>
+                VimeoのURLを貼ると、受講ページでテストの前に動画が表示されます。動画を最後まで見るまで、テストは開始できません。
+                {videoUrl ? " 現在: 設定済み" : " 現在: なし"}
+              </p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <input
+                  type="url"
+                  placeholder="https://vimeo.com/123456789/abcdef1234"
+                  value={videoInput}
+                  onChange={(e) => setVideoInput(e.target.value)}
+                  style={{ flex: "1 1 320px", maxWidth: 480 }}
+                />
+                <button
+                  onClick={() => saveVideo(videoInput.trim() || null)}
+                  disabled={savingVideo || !videoInput.trim() || videoInput.trim() === videoUrl}
+                  className="btn btn-primary btn-sm"
+                >
+                  {savingVideo ? "保存中..." : "動画を保存"}
+                </button>
+                {videoUrl && (
+                  <button
+                    onClick={() => {
+                      if (confirm("動画をなしにしますか？受講者は動画を見なくても受験できるようになります。")) {
+                        saveVideo(null);
+                      }
+                    }}
+                    disabled={savingVideo}
+                    className="btn btn-outline btn-sm"
+                  >
+                    動画なしにする
+                  </button>
+                )}
+              </div>
+              {videoMessage && (
+                <p
+                  style={{
+                    fontSize: 13,
+                    marginTop: 8,
+                    marginBottom: 0,
+                    color: videoMessage.ok ? "var(--color-success)" : "var(--color-error)",
+                  }}
+                >
+                  {videoMessage.text}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="section">
+            <div className="card">
               <p style={{ fontWeight: 600, marginBottom: 4 }}>受験期限</p>
               <p className="text-muted" style={{ marginBottom: 12, fontSize: 13 }}>
                 期限を決めておくと、下の「案内文をコピー」に期限が入ります。
@@ -440,6 +545,7 @@ export default function TrainingAdminPage() {
                             <tr>
                               <th>氏名</th>
                               <th>部署</th>
+                              {videoUrl && <th>動画</th>}
                               <th>合否</th>
                               <th>受験回数</th>
                               <th>直近スコア</th>
@@ -453,6 +559,9 @@ export default function TrainingAdminPage() {
                                 <tr key={employee.id}>
                                   <td style={{ fontWeight: 500 }}>{employee.name}</td>
                                   <td className="text-muted">{employee.department || "-"}</td>
+                                  {videoUrl && (
+                                    <td style={{ whiteSpace: "nowrap" }}>{videoCell(enrollment!.id)}</td>
+                                  )}
                                   <td>
                                     {passed ? (
                                       <span

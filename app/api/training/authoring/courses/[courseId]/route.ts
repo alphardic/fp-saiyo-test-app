@@ -8,6 +8,7 @@ import {
   loadQuestions,
   resolveActor,
 } from "@/lib/trainingAuthoring";
+import { toVimeoPlayerUrl } from "@/lib/vimeo";
 import type { OutlinePoint } from "@/lib/trainingAuthoringAI";
 
 type Params = { params: { courseId: string } };
@@ -97,6 +98,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       sourceNotes?: string;
       outline?: OutlinePoint[];
       variantsPerPoint?: number;
+      videoUrl?: string | null;
     };
 
     const update: Record<string, unknown> = {};
@@ -109,6 +111,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (body.sourceNotes !== undefined) update.source_notes = body.sourceNotes;
     if (body.variantsPerPoint !== undefined) {
       update.variants_per_point = Math.min(5, Math.max(1, Math.round(body.variantsPerPoint)));
+    }
+
+    if (body.videoUrl !== undefined) {
+      const raw = body.videoUrl?.trim() || null;
+      const videoUrl = raw ? toVimeoPlayerUrl(raw) : null;
+      if (raw && !videoUrl) {
+        throw new AuthoringError(
+          "VimeoのURLとして読み取れませんでした。動画ページのURL(https://vimeo.com/...)を貼ってください。",
+          400
+        );
+      }
+      update.video_url = videoUrl;
     }
 
     const supabase = getSupabaseServerClient();
@@ -146,7 +160,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (Object.keys(update).length > 0) {
       const { error } = await supabase.from("training_courses").update(update).eq("id", course.id);
-      if (error) throw new AuthoringError("保存に失敗しました: " + error.message, 500);
+      if (error) {
+        if (error.message.includes("video_url")) {
+          throw new AuthoringError(
+            "動画を保存する準備がまだです。管理者に supabase/training_video_migration.sql の実行を依頼してください。",
+            500
+          );
+        }
+        throw new AuthoringError("保存に失敗しました: " + error.message, 500);
+      }
     }
     return { ok: true };
   });

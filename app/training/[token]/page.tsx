@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 import { useParams } from "next/navigation";
+import TrainingVideoPlayer, { type VideoStatus } from "@/components/TrainingVideoPlayer";
 
 interface Question {
   id: string;
@@ -32,6 +33,8 @@ interface StatusResponse {
   questions: Question[];
   totalQuestions: number;
   passThreshold: number;
+  /** 研修動画があるテストのみ。最後まで見ないと受験を開始できない */
+  video: VideoStatus | null;
 }
 
 interface SubmitResult {
@@ -174,6 +177,11 @@ export default function TrainingExamPage() {
   if (!status) return null;
 
   const passPercent = Math.round((status.passThreshold / status.totalQuestions) * 100);
+  const videoLocked = !!status.video && !status.video.completed;
+
+  function handleVideoChange(video: VideoStatus) {
+    setStatus((prev) => (prev ? { ...prev, video } : prev));
+  }
 
   function ReviewList({ items }: { items: ReviewItem[] }) {
     return (
@@ -369,6 +377,10 @@ export default function TrainingExamPage() {
         </div>
       )}
 
+      {status.video && (
+        <TrainingVideoPlayer token={token} initial={status.video} onChange={handleVideoChange} />
+      )}
+
       <div className="card" style={{ marginBottom: 16 }}>
         <p style={{ fontWeight: 600, marginBottom: 12 }}>テストのルール</p>
         <ul style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -376,6 +388,7 @@ export default function TrainingExamPage() {
           <li>
             合格ライン: {status.passThreshold}問({passPercent}%)以上の正解
           </li>
+          {status.video && <li>研修動画を最後まで見てから受験します</li>}
           <li>所要時間の目安: 約15〜20分</li>
           <li>
             何度でも再受験できます。不合格の場合、次回受験時は設問の一部が別のパターンに入れ替わります(丸暗記対策)
@@ -389,8 +402,14 @@ export default function TrainingExamPage() {
           {status.attemptCount > 0 && "(出題は毎回パターンが変わります)"}
         </p>
         <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-          <button onClick={handleStart} disabled={starting} className="btn btn-primary">
-            {starting ? "準備中..." : status.attemptCount > 0 ? "再受験する" : "テストを開始する"}
+          <button onClick={handleStart} disabled={starting || videoLocked} className="btn btn-primary">
+            {starting
+              ? "準備中..."
+              : videoLocked
+                ? "動画を最後まで見ると開始できます"
+                : status.attemptCount > 0
+                  ? "再受験する"
+                  : "テストを開始する"}
           </button>
           {status.lastResult && !review && (
             <button

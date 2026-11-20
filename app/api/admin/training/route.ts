@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/adminAuth";
+import { loadVideoStatusesForEnrollments } from "@/lib/trainingVideo";
 
 /**
  * GET /api/admin/training
@@ -12,20 +13,24 @@ export async function GET(req: NextRequest) {
 
   const supabase = getSupabaseServerClient();
 
-  const withDueDate = await supabase
-    .from("training_courses")
-    .select("id, name, description, status, created_at, due_date")
-    .eq("status", "active")
-    .order("created_at", { ascending: true });
-
-  // due_date 列の追加(supabase/training_due_date_migration.sql)前でも一覧は表示できるようにする
-  const { data: courses, error: coursesError } = withDueDate.error
-    ? await supabase
-        .from("training_courses")
-        .select("id, name, description, status, created_at")
-        .eq("status", "active")
-        .order("created_at", { ascending: true })
-    : withDueDate;
+  // 追加の列(due_date・video_url)のSQLを実行する前でも一覧は表示できるよう、列を減らしながら取り直す
+  const columnSets = [
+    "id, name, description, status, created_at, due_date, video_url",
+    "id, name, description, status, created_at, due_date",
+    "id, name, description, status, created_at",
+  ];
+  let courses: Record<string, unknown>[] | null = null;
+  let coursesError: unknown = null;
+  for (const columns of columnSets) {
+    const result = await supabase
+      .from("training_courses")
+      .select(columns)
+      .eq("status", "active")
+      .order("created_at", { ascending: true });
+    courses = (result.data as unknown as Record<string, unknown>[] | null) ?? null;
+    coursesError = result.error;
+    if (!result.error) break;
+  }
 
   if (coursesError) {
     return NextResponse.json({ error: "コースの取得に失敗しました。" }, { status: 500 });
@@ -64,10 +69,14 @@ export async function GET(req: NextRequest) {
     attempts = attemptsData ?? [];
   }
 
+  // 研修動画の視聴状況(training_video_migration.sql の実行前は空)
+  const videoProgress = await loadVideoStatusesForEnrollments(supabase, enrollmentIds);
+
   return NextResponse.json({
     courses: courses ?? [],
     employees: employees ?? [],
     enrollments: enrollments ?? [],
     attempts,
+    videoProgress,
   });
 }
