@@ -8,6 +8,10 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // Workers AI(研修動画の音声の文字起こしに使う。@cf/openai/whisper-large-v3-turbo)
+  "ai": {
+    "binding": "AI"
+  },
   // 毎時0分に、お知らせメールの定期処理を呼ぶ(25日以降の下書き作成・催促・1日朝9時の配信は、呼ばれた側が日時で判断する)
   "triggers": {
     "crons": ["0 * * * *"]
