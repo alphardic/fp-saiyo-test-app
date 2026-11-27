@@ -276,6 +276,26 @@ export default function TrainingPortalHomePage() {
       <div className="section">
         <div className="section-title">
           <span className="dot" />
+          <h2>研修動画から研修を作る</h2>
+        </div>
+        <div className="card">
+          <p className="text-muted" style={{ marginTop: 0 }}>
+            動画をアップロードすると、Vimeo への登録、AIによるタイトル・説明文・サムネイル・テストの作成、カリキュラムへの追加まで順番に進められます。
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <a className="btn btn-primary" href="/training/portal/video-new">
+              動画をアップロードして作る
+            </a>
+            <a className="btn btn-outline" href="/training/portal/curricula">
+              カリキュラムの管理
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div className="section">
+        <div className="section-title">
+          <span className="dot" />
           <h2>新しいテストを作る</h2>
         </div>
         <div className="card">

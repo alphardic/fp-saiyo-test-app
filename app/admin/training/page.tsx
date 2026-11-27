@@ -349,6 +349,9 @@ export default function TrainingAdminPage() {
           <a href="/admin/training/rules" className="btn btn-outline btn-sm">
             作問ルール
           </a>
+          <a href="/admin/training/curricula" className="btn btn-outline btn-sm">
+            カリキュラム
+          </a>
         </div>
       </div>
 

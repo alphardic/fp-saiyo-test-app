@@ -411,3 +411,80 @@ lesson: ${lessonDescription}`,
   });
   return result.lesson.trim();
 }
+
+export interface VideoPackage {
+  /** 動画とテストのタイトル(30字以内) */
+  title: string;
+  /** Vimeo とテストの説明文(受講者向け、200〜300字) */
+  description: string;
+  /** 受講対象者 */
+  targetAudience: string;
+  /** サムネイルに載せる文言 */
+  thumbnail: {
+    /** 大きく載せる見出し(16字以内) */
+    headline: string;
+    /** 見出しの下の補足(28字以内) */
+    subline: string;
+    /** 内容を表すキーワード(3つ、各8字以内) */
+    keywords: string[];
+  };
+}
+
+/**
+ * 研修動画の内容(資料の要点ノート・字幕)から、動画のタイトル・説明文・受講対象者と、
+ * サムネイルに載せる文言を作る。
+ */
+export async function generateVideoPackage(params: {
+  fileName: string;
+  sourceNotes: string;
+  currentTitle?: string;
+}): Promise<VideoPackage> {
+  return callJson<VideoPackage>({
+    system: `あなたはFP(ファイナンシャルプランナー)事務所「アルファFP」の社内研修の編集担当です。
+社員向けの研修動画について、動画一覧で目を引き、受講前に内容が分かるタイトル・説明文・サムネイルの文言を作ります。
+- 受講者は社内の営業担当・FPです。社外向けの宣伝文句や誇張(「必見」「衝撃」など)は使わない
+- 資料に書かれていない数字や事実は書かない
+- 説明文は「この研修で分かること」が受講前に伝わるように、です・ます調で書く`,
+    content: [
+      {
+        type: "text",
+        text: `# 動画ファイル名
+${params.fileName}
+${params.currentTitle ? `\n# 現在のタイトル(参考)\n${params.currentTitle}\n` : ""}
+# 動画の内容(資料の要点ノート・字幕)
+${params.sourceNotes}
+
+# 依頼
+この研修動画のタイトル・説明文・受講対象者と、サムネイルに載せる文言を作ってください。
+- title: 30字以内。研修の主題がひと目で分かる名前
+- description: 200〜300字。研修で分かることを2〜3点に絞って書く
+- targetAudience: 誰が受けるべきか(40字以内)
+- thumbnail.headline: 16字以内。サムネイルに大きく載せる、内容の核心を突く一言
+- thumbnail.subline: 28字以内。見出しの補足
+- thumbnail.keywords: 内容を表すキーワードを3つ(各8字以内)`,
+      },
+    ],
+    schema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        description: { type: "string" },
+        targetAudience: { type: "string" },
+        thumbnail: {
+          type: "object",
+          properties: {
+            headline: { type: "string" },
+            subline: { type: "string" },
+            keywords: { type: "array", items: { type: "string" } },
+          },
+          required: ["headline", "subline", "keywords"],
+          additionalProperties: false,
+        },
+      },
+      required: ["title", "description", "targetAudience", "thumbnail"],
+      additionalProperties: false,
+    },
+    effort: "medium",
+    maxTokens: 8000,
+  });
+}

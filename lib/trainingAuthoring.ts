@@ -37,6 +37,8 @@ export interface AuthoringCourse {
   created_at: string;
   /** 研修動画(Vimeoのプレーヤーの URL)。training_video_migration.sql の実行前は undefined */
   video_url?: string | null;
+  /** アプリからアップロードした Vimeo 動画の uri("/videos/123")。training_curriculum_migration.sql の実行前は undefined */
+  vimeo_uri?: string | null;
 }
 
 export interface AuthoringQuestion extends QuestionDraft {
@@ -126,18 +128,22 @@ export async function loadCourseForActor(
   opts: { edit: boolean; allowReviewer?: boolean }
 ): Promise<CourseWithRole> {
   const supabase = getSupabaseServerClient();
-  // video_url 列(training_video_migration.sql)の追加前でも開けるよう、失敗したら列を外して取り直す
-  const withVideo = await supabase
-    .from("training_courses")
-    .select(COURSE_COLUMNS + ", video_url")
-    .eq("id", courseId)
-    .maybeSingle();
-  const { data: course } = withVideo.error
-    ? await supabase.from("training_courses").select(COURSE_COLUMNS).eq("id", courseId).maybeSingle()
-    : withVideo;
+  // 後から足した列(video_url・vimeo_uri)の SQL を実行する前でも開けるよう、失敗したら列を減らして取り直す
+  let course: Record<string, unknown> | null = null;
+  for (const extra of [", video_url, vimeo_uri", ", video_url", ""]) {
+    const result = await supabase
+      .from("training_courses")
+      .select(COURSE_COLUMNS + extra)
+      .eq("id", courseId)
+      .maybeSingle();
+    if (!result.error) {
+      course = result.data as Record<string, unknown> | null;
+      break;
+    }
+  }
   if (!course) throw new AuthoringError("テストが見つかりません。", 404);
 
-  const c = course as AuthoringCourse;
+  const c = course as unknown as AuthoringCourse;
   let role: CourseRole;
   if (actor.kind === "admin") {
     role = "admin";
