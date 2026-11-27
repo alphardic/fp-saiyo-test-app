@@ -4,10 +4,11 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { portalHeaders, PORTAL_HOME_PATH, PORTAL_LOGIN_PATH } from "@/lib/trainingPortalClient";
 import { canvasToPngBase64, drawThumbnail, type ThumbnailCopy } from "@/lib/trainingThumbnail";
+import { chunkCount, chunkToWavBase64, decodeAudio } from "@/lib/videoAudio";
 
 /**
  * 研修動画から研修を作る(社員用ポータル)。
- * 1. 動画をアップロード(Vimeo へ直接送る) → 2. 内容をAIに伝える(PDF・原稿・字幕)
+ * 1. 動画をアップロード(Vimeo へ直接送る) → 2. 動画の音声を文字起こし(自動。資料があれば補足)
  * → 3. AIがタイトル・説明文を作る → 4. AIの文言でサムネイルを作る
  * → 5. AIがテストを作る → 6. カリキュラムに入れる
  */
@@ -40,6 +41,9 @@ interface Curriculum {
 }
 
 const CHUNK_BYTES = 16 * 1024 * 1024;
+/** 文字起こしで1回に送る音声の長さ(秒)と、同時に送る数 */
+const TRANSCRIBE_CHUNK_SEC = 60;
+const TRANSCRIBE_PARALLEL = 3;
 
 /** tus 方式で Vimeo に動画を送る。失敗したら Vimeo に送れた位置を確かめて続きから送り直す */
 async function tusUpload(file: File, uploadLink: string, onProgress: (ratio: number) => void): Promise<void> {
@@ -106,6 +110,8 @@ function VideoNewPageInner() {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   // 2. 内容
   const [script, setScript] = useState("");
+  const [transcribeProgress, setTranscribeProgress] = useState<{ done: number; total: number } | null>(null);
+  const [showExtra, setShowExtra] = useState(false);
   // 3. タイトル・説明
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -215,11 +221,73 @@ function VideoNewPageInner() {
       await tusUpload(file, created.uploadLink, setUploadProgress);
       setCourseId(created.courseId);
       router.replace(`/training/portal/video-new?courseId=${created.courseId}`);
+      // そのまま、手元の動画ファイルから音声を文字起こしする
+      setMessage({ type: "info", text: "アップロードが終わりました。続けて、動画の音声を文字起こしします。" });
+      setBusy("transcribe");
+      await transcribeFile(created.courseId, file);
+    });
+  }
+
+  // ---- 2. 文字起こし
+  /** 動画ファイルの音声を1分ずつ文字にし、資料ノートに「動画の文字起こし」として保存する */
+  async function transcribeFile(id: string, video: File) {
+    setTranscribeProgress({ done: 0, total: 0 });
+    try {
+      const track = await decodeAudio(video);
+      const total = chunkCount(track, TRANSCRIBE_CHUNK_SEC);
+      const texts: string[] = new Array(total).fill("");
+      let next = 0;
+      let done = 0;
+      setTranscribeProgress({ done: 0, total });
+      const worker = async () => {
+        while (next < total) {
+          const index = next++;
+          const wav = chunkToWavBase64(track, index, TRANSCRIBE_CHUNK_SEC);
+          let lastError: unknown = null;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              const res = await api(`/api/training/authoring/courses/${id}/video/transcribe`, {
+                method: "POST",
+                json: { wav },
+              });
+              texts[index] = res.text ?? "";
+              lastError = null;
+              break;
+            } catch (e) {
+              lastError = e;
+              await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+            }
+          }
+          if (lastError) throw lastError;
+          done += 1;
+          setTranscribeProgress({ done, total });
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(TRANSCRIBE_PARALLEL, total) }, worker));
+
+      const transcript = texts
+        .map((t, i) => (t.trim() ? `[${i * (TRANSCRIBE_CHUNK_SEC / 60)}分〜] ${t.trim()}` : ""))
+        .filter(Boolean)
+        .join("\n");
+      if (!transcript) throw new Error("音声から言葉を聞き取れませんでした。");
+      const current = await loadCourse(id);
+      const merged = [current.course.source_notes.trim(), `## 動画の文字起こし\n\n${transcript}`]
+        .filter(Boolean)
+        .join("\n\n");
+      await api(`/api/training/authoring/courses/${id}`, { method: "PATCH", json: { sourceNotes: merged } });
+      await loadCourse(id);
       setMessage({
         type: "success",
-        text: "アップロードが終わりました。Vimeo で動画の変換が進んでいる間に、次の手順へ進めます。",
+        text: `動画の音声を文字起こししました(約${Math.round(track.durationSec / 60)}分・${transcript.length.toLocaleString()}文字)。次の「AIで作る」に進めます。`,
       });
-    });
+    } finally {
+      setTranscribeProgress(null);
+    }
+  }
+
+  async function transcribeAgain(video: File) {
+    if (!courseId) return;
+    await run("transcribe", () => transcribeFile(courseId, video));
   }
 
   // ---- 2. 内容
@@ -242,15 +310,6 @@ function VideoNewPageInner() {
       setScript("");
       await loadCourse(courseId);
       setMessage({ type: "success", text: "原稿を読み込みました。" });
-    });
-  }
-
-  async function importTranscript() {
-    if (!courseId) return;
-    await run("transcript", async () => {
-      await api(`/api/training/authoring/courses/${courseId}/video/transcript`, { method: "POST" });
-      await loadCourse(courseId);
-      setMessage({ type: "success", text: "Vimeo の字幕を読み込みました。" });
     });
   }
 
@@ -443,50 +502,86 @@ function VideoNewPageInner() {
 
       {courseId && detail && (
         <>
-          {/* 2. 内容 */}
+          {/* 2. 文字起こし */}
           <div className="section">
-            <StepTitle n={2} title="動画の内容をAIに伝える" done={!!notes.trim()} />
+            <StepTitle n={2} title="動画の音声を文字起こしする" done={notes.includes("## 動画の文字起こし")} />
             <div className="card">
               <p className="text-muted" style={{ fontSize: 13 }}>
-                AIは動画を直接見られないため、動画の内容を文字で渡します。スライドのPDF、読み上げ原稿、Vimeo の字幕のどれか1つ以上を読み込んでください。
+                AIは動画を直接見られないため、動画の音声を文字にして渡します。アップロードのあとに自動で始まります(30分の動画で数分)。
               </p>
-              <div className="field">
-                <label>スライドなどのPDF(10MBまで)</label>
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  disabled={disabled}
-                  onChange={(e) => {
-                    const pdf = e.target.files?.[0];
-                    if (pdf) uploadPdf(pdf);
-                    e.target.value = "";
-                  }}
-                />
-                {busy === "pdf" && <p className="text-muted" style={{ fontSize: 13 }}>PDFを読んでいます…(1〜2分)</p>}
-              </div>
-              <div className="field">
-                <label>読み上げ原稿・話す内容(貼り付け)</label>
-                <textarea rows={5} value={script} onChange={(e) => setScript(e.target.value)} disabled={disabled} />
-                <button
-                  className="btn btn-outline btn-sm"
-                  style={{ marginTop: 8 }}
-                  onClick={saveScript}
-                  disabled={disabled || !script.trim()}
-                >
-                  {busy === "script" ? "保存中..." : "原稿を読み込む"}
-                </button>
-              </div>
-              <div className="field">
-                <label>Vimeo の自動字幕</label>
-                <button className="btn btn-outline btn-sm" onClick={importTranscript} disabled={disabled}>
-                  {busy === "transcript" ? "取り込み中..." : "字幕を取り込む"}
-                </button>
-                <p className="text-muted" style={{ fontSize: 12, marginTop: 4, marginBottom: 0 }}>
-                  動画の変換が終わったあとに使えます。Vimeo のプランによっては自動字幕が作られません。
-                </p>
-              </div>
-              <p className="text-muted" style={{ fontSize: 13, marginBottom: 0 }}>
-                {notes.trim() ? `読み込み済みの内容: 約${notes.length.toLocaleString()}文字` : "まだ何も読み込んでいません。"}
+              {transcribeProgress ? (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ height: 8, background: "#e5e7eb", borderRadius: 4, overflow: "hidden" }}>
+                    <div
+                      style={{
+                        width: transcribeProgress.total ? `${Math.round((transcribeProgress.done / transcribeProgress.total) * 100)}%` : "3%",
+                        height: "100%",
+                        background: "var(--color-primary, #1d4ed8)",
+                      }}
+                    />
+                  </div>
+                  <p className="text-muted" style={{ fontSize: 13, marginTop: 6 }}>
+                    {transcribeProgress.total === 0
+                      ? "動画から音声を取り出しています…"
+                      : `文字起こし中 ${transcribeProgress.done} / ${transcribeProgress.total} 分(この画面を閉じないでください)`}
+                  </p>
+                </div>
+              ) : notes.includes("## 動画の文字起こし") ? (
+                <p style={{ marginTop: 0 }}>✅ 文字起こしが済んでいます。</p>
+              ) : (
+                <div className="field">
+                  <label>動画ファイルを選ぶと、文字起こしを始めます(アップロードしたものと同じファイル)</label>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    disabled={disabled}
+                    onChange={(e) => {
+                      const video = e.target.files?.[0];
+                      if (video) transcribeAgain(video);
+                      e.target.value = "";
+                    }}
+                  />
+                </div>
+              )}
+
+              <button className="btn btn-outline btn-sm" onClick={() => setShowExtra(!showExtra)} disabled={disabled}>
+                {showExtra ? "▲ 補足資料を閉じる" : "▼ 補足資料を足す(任意)"}
+              </button>
+              {showExtra && (
+                <div style={{ marginTop: 12 }}>
+                  <p className="text-muted" style={{ fontSize: 13 }}>
+                    スライドや原稿があれば、数字や用語の正確さが上がります。無くても先へ進めます。
+                  </p>
+                  <div className="field">
+                    <label>スライドなどのPDF(10MBまで。ページが多いと2〜3分かかります)</label>
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      disabled={disabled}
+                      onChange={(e) => {
+                        const pdf = e.target.files?.[0];
+                        if (pdf) uploadPdf(pdf);
+                        e.target.value = "";
+                      }}
+                    />
+                    {busy === "pdf" && <p className="text-muted" style={{ fontSize: 13 }}>PDFを読んでいます…(2〜3分)</p>}
+                  </div>
+                  <div className="field">
+                    <label>読み上げ原稿・補足(貼り付け)</label>
+                    <textarea rows={4} value={script} onChange={(e) => setScript(e.target.value)} disabled={disabled} />
+                    <button
+                      className="btn btn-outline btn-sm"
+                      style={{ marginTop: 8 }}
+                      onClick={saveScript}
+                      disabled={disabled || !script.trim()}
+                    >
+                      {busy === "script" ? "保存中..." : "原稿を読み込む"}
+                    </button>
+                  </div>
+                </div>
+              )}
+              <p className="text-muted" style={{ fontSize: 13, marginBottom: 0, marginTop: 12 }}>
+                {notes.trim() ? `AIに渡す内容: 約${notes.length.toLocaleString()}文字` : "まだ何も読み込んでいません。"}
               </p>
             </div>
           </div>
