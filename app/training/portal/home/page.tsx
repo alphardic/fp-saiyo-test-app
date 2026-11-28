@@ -17,6 +17,7 @@ interface MyCourse {
   reviewRequested: number;
   reviewDone: number;
   enrolledCount: number;
+  fromVideo?: boolean;
 }
 
 interface ReviewRequest {
@@ -255,6 +256,15 @@ export default function TrainingPortalHomePage() {
                             style={{ marginRight: 4 }}
                           >
                             結果
+                          </a>
+                        )}
+                        {c.fromVideo && c.status !== "active" && (
+                          <a
+                            href={`/training/portal/video-new?courseId=${c.id}`}
+                            className="btn btn-primary btn-sm"
+                            style={{ marginRight: 4 }}
+                          >
+                            動画の手順を続ける
                           </a>
                         )}
                         <a
