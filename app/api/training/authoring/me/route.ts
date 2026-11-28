@@ -17,11 +17,7 @@ export async function GET(req: NextRequest) {
     const supabase = getSupabaseServerClient();
 
     const [{ data: courses }, { data: reviewRows }] = await Promise.all([
-      supabase
-        .from("training_courses")
-        .select("id, name, status, review_comment, published_at, created_at")
-        .eq("author_employee_id", actor.employeeId)
-        .order("created_at", { ascending: false }),
+      loadMyCourses(supabase, actor.employeeId),
       supabase
         .from("training_course_reviewers")
         .select("course_id, status, requested_at")
@@ -66,6 +62,8 @@ export async function GET(req: NextRequest) {
           reviewRequested: rs.length,
           reviewDone: rs.filter((r) => r.status === "done").length,
           enrolledCount: (enrollments ?? []).filter((e) => e.course_id === c.id).length,
+          // アプリからアップロードした動画のテストか(「動画の手順を続ける」を出すため)
+          fromVideo: !!c.vimeo_uri,
         };
       }),
       reviewRequests: (reviewRows ?? []).flatMap((r) => {
@@ -84,4 +82,32 @@ export async function GET(req: NextRequest) {
       }),
     };
   });
+}
+
+/** 自分が作ったテスト。vimeo_uri 列(training_curriculum_migration.sql)が無くても一覧は出す */
+async function loadMyCourses(supabase: ReturnType<typeof getSupabaseServerClient>, employeeId: string) {
+  const base = "id, name, status, review_comment, published_at, created_at";
+  const withVideo = await supabase
+    .from("training_courses")
+    .select(base + ", vimeo_uri")
+    .eq("author_employee_id", employeeId)
+    .order("created_at", { ascending: false });
+  if (!withVideo.error) {
+    return { data: withVideo.data as unknown as (CourseRow & { vimeo_uri: string | null })[] };
+  }
+  const plain = await supabase
+    .from("training_courses")
+    .select(base)
+    .eq("author_employee_id", employeeId)
+    .order("created_at", { ascending: false });
+  return { data: (plain.data ?? []).map((c) => ({ ...(c as CourseRow), vimeo_uri: null })) };
+}
+
+interface CourseRow {
+  id: string;
+  name: string;
+  status: string;
+  review_comment: string | null;
+  published_at: string | null;
+  created_at: string;
 }
